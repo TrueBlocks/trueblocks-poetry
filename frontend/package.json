@@ -52,7 +52,7 @@
     "eslint-plugin-testing-library": "^7.15.4",
     "eslint-plugin-unused-imports": "^4.1.4",
     "jsdom": "^27.4.0",
-    "prettier": "^3.5.3",
+    "prettier": "^3.8.1",
     "typescript": "^5.8.3",
     "vite": "^7.3.0",
     "vite-tsconfig-paths": "^6.0.4",
