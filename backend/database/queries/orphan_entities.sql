@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM entities e LEFT JOIN relationships r ON e.id = r.source_id OR e.id = r.target_id WHERE r.id IS NULL

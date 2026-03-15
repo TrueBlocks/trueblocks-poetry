@@ -22,13 +22,16 @@ import {
 import { notifications } from "@mantine/notifications";
 import { LogError, LogWarning } from "@utils/logger";
 import {
-  GetItem,
-  CreateItem,
-  UpdateItem,
-  SaveItemImage,
-  GetItemImage,
-  DeleteItemImage,
-} from "@wailsjs/go/main/App.js";
+  SaveEntityImage,
+  GetEntityImage,
+  DeleteEntityImage,
+} from "@wailsjs/go/services/ImageService";
+import {
+  GetEntity,
+  CreateEntity,
+  UpdateEntity,
+} from "@wailsjs/go/services/EntityService";
+import { appConfig } from "@/config";
 import {
   ArrowLeft,
   Save,
@@ -53,15 +56,17 @@ export default function ItemEdit({
   const imageBoxRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
-    itemId: 0,
-    word: "",
-    type: "Reference",
-    definition: "",
-    derivation: "",
-    appendicies: "",
-    source: "",
-    sourcePg: "",
-    mark: "",
+    id: 0,
+    primaryLabel: "",
+    typeSlug: "reference",
+    description: "",
+    attributes: {
+      derivation: "",
+      appendicies: "",
+      source: "",
+      sourcePg: "",
+      mark: "",
+    },
   });
 
   const [pastedImage, setPastedImage] = useState<string | null>(null);
@@ -69,63 +74,67 @@ export default function ItemEdit({
   const [isImageLoading, setIsImageLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
-  // Reference validation for definition field
+  // Reference validation for description field
   const { getMissingReferences, getExistingReferences, isValidating } =
-    useReferenceValidation(formData.definition);
+    useReferenceValidation(formData.description);
 
-  const handleCreateMissingItem = async (word: string) => {
-    const newItemId = Date.now() + Math.floor(Math.random() * 1000);
+  const handleCreateMissingEntity = async (primaryLabel: string) => {
+    const newId = Date.now() + Math.floor(Math.random() * 1000);
     try {
-      await CreateItem({
-        itemId: newItemId,
-        word: word,
-        type: "Reference",
-        definition: "",
-        derivation: "",
-        appendicies: "",
-        source: "",
-        sourcePg: "",
-        mark: "",
-      } as database.Item);
-      queryClient.invalidateQueries({ queryKey: ["allItems"] });
+      await CreateEntity({
+        id: newId,
+        primaryLabel: primaryLabel,
+        typeSlug: "reference",
+        description: "",
+        attributes: {
+          derivation: "",
+          appendicies: "",
+          source: "",
+          sourcePg: "",
+          mark: "",
+        },
+      } as unknown as database.Entity);
+      queryClient.invalidateQueries({ queryKey: ["allEntities"] });
       notifications.show({
         title: "Item Created",
-        message: `Created "${word}" as a new reference`,
+        message: `Created "${primaryLabel}" as a new reference`,
         color: "green",
         icon: <Check size={18} />,
       });
     } catch {
       notifications.show({
         title: "Error",
-        message: `Failed to create "${word}"`,
+        message: `Failed to create "${primaryLabel}"`,
         color: "red",
         icon: <X size={18} />,
       });
     }
   };
 
-  const { data: item, isLoading: isLoadingItem } = useQuery({
-    queryKey: ["item", id],
-    queryFn: () => GetItem(Number(id)),
+  const { data: entity, isLoading: isLoadingEntity } = useQuery({
+    queryKey: ["entity", id],
+    queryFn: () => GetEntity(Number(id)),
     enabled: !isNew,
   });
 
   useEffect(() => {
-    if (item) {
+    if (entity) {
       setFormData({
-        itemId: item.itemId,
-        word: item.word,
-        type: item.type === "Other" ? "Reference" : item.type,
-        definition: item.definition || "",
-        derivation: item.derivation || "",
-        appendicies: item.appendicies || "",
-        source: item.source || "",
-        sourcePg: item.sourcePg || "",
-        mark: item.mark || "",
+        id: entity.id,
+        primaryLabel: entity.primaryLabel,
+        typeSlug: entity.typeSlug,
+        description: entity.description || "",
+        attributes: {
+          derivation: entity.attributes?.derivation || "",
+          appendicies: entity.attributes?.appendicies || "",
+          source: entity.attributes?.source || "",
+          sourcePg: entity.attributes?.sourcePg || "",
+          mark: entity.attributes?.mark || "",
+        },
       });
       // Load cached image if it exists
       setIsImageLoading(true);
-      GetItemImage(item.itemId)
+      GetEntityImage(entity.id)
         .then((imageData) => {
           if (imageData) {
             setCachedImage(imageData);
@@ -138,20 +147,22 @@ export default function ItemEdit({
     } else if (isNew) {
       // Reset form when creating new item
       setFormData({
-        itemId: 0,
-        word: "",
-        type: "Reference",
-        definition: "",
-        derivation: "",
-        appendicies: "",
-        source: "",
-        sourcePg: "",
-        mark: "",
+        id: 0,
+        primaryLabel: "",
+        typeSlug: "reference",
+        description: "",
+        attributes: {
+          derivation: "",
+          appendicies: "",
+          source: "",
+          sourcePg: "",
+          mark: "",
+        },
       });
       setCachedImage(null);
       setPastedImage(null);
     }
-  }, [item, isNew]);
+  }, [entity, isNew]);
 
   // Handle paste event for image
   useEffect(() => {
@@ -202,22 +213,25 @@ export default function ItemEdit({
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       try {
-        if (isNew || data.itemId === 0) {
+        if (isNew || data.id === 0) {
           // Generate a new item ID using current timestamp + random component
-          const newItemId = Date.now() + Math.floor(Math.random() * 1000);
-          await CreateItem({ ...data, itemId: newItemId } as database.Item);
-          return { newId: newItemId };
+          const newId = Date.now() + Math.floor(Math.random() * 1000);
+          await CreateEntity({
+            ...data,
+            id: newId,
+          } as unknown as database.Entity);
+          return { newId: newId };
         } else {
-          await UpdateItem(data as database.Item);
-          return { itemId: Number(id) };
+          await UpdateEntity(data as unknown as database.Entity);
+          return { id: Number(id) };
         }
       } catch (error) {
         LogError(`Error in mutationFn: ${error}`);
         throw error;
       }
     },
-    onSuccess: async (data: { newId?: number; itemId?: number }) => {
-      const savedItemId = data.newId || data.itemId || Number(id);
+    onSuccess: async (data: { newId?: number; id?: number }) => {
+      const savedId = data.newId || data.id || Number(id);
 
       // Save or delete image based on current state
       try {
@@ -227,12 +241,12 @@ export default function ItemEdit({
           );
         } else if (pastedImage) {
           // Save the new pasted image
-          await SaveItemImage(savedItemId, pastedImage);
+          await SaveEntityImage(savedId, pastedImage);
           setCachedImage(pastedImage);
           setPastedImage(null);
         } else if (!pastedImage && !cachedImage) {
           // Delete image if both are cleared
-          await DeleteItemImage(savedItemId);
+          await DeleteEntityImage(savedId);
         }
       } catch (error) {
         LogError(`Error saving image: ${error}`);
@@ -244,12 +258,12 @@ export default function ItemEdit({
         color: "green",
         icon: <Check size={18} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["recentItems"] });
+      queryClient.invalidateQueries({ queryKey: ["recentEntities"] });
       if (isNew) {
         // Navigate to the newly created item
-        navigate(`/item/${data.newId || data.itemId}?tab=detail`);
+        navigate(`/item/${data.newId || data.id}?tab=detail`);
       } else {
-        queryClient.invalidateQueries({ queryKey: ["item", id] });
+        queryClient.invalidateQueries({ queryKey: ["entity", id] });
         if (onSave) {
           onSave();
         } else {
@@ -273,22 +287,26 @@ export default function ItemEdit({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.word.trim()) {
+    if (!formData.primaryLabel.trim()) {
       alert("Word field is required");
       return;
     }
-    if (!formData.definition.trim() || formData.definition === "MISSING DATA") {
+    if (
+      !formData.description.trim() ||
+      formData.description === "MISSING DATA"
+    ) {
       alert('Definition field is required and cannot be "MISSING DATA"');
       return;
     }
     // Validate tags
     const tagRegex = /\{([^:]+):[^}]+\}/g;
     let match;
-    while ((match = tagRegex.exec(formData.definition)) !== null) {
+    while ((match = tagRegex.exec(formData.description)) !== null) {
       const tagType = match[1];
-      if (!["w", "p", "t", "word", "writer", "title"].includes(tagType)) {
+      // Allow any alphanumeric tag type (generic tags)
+      if (!/^[a-zA-Z0-9_]+$/.test(tagType)) {
         alert(
-          `Invalid tag type found: "${tagType}". Allowed types are: w, p, t, word, writer, title.`,
+          `Invalid tag type found: "${tagType}". Tag types must be alphanumeric (e.g. {writer: Name}).`,
         );
         return;
       }
@@ -301,7 +319,7 @@ export default function ItemEdit({
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        if (!formData.word.trim()) {
+        if (!formData.primaryLabel.trim()) {
           notifications.show({
             title: "Validation Error",
             message: "Word field is required",
@@ -310,8 +328,8 @@ export default function ItemEdit({
           return;
         }
         if (
-          !formData.definition.trim() ||
-          formData.definition === "MISSING DATA"
+          !formData.description.trim() ||
+          formData.description === "MISSING DATA"
         ) {
           notifications.show({
             title: "Validation Error",
@@ -324,12 +342,12 @@ export default function ItemEdit({
         // Validate tags
         const tagRegex = /\{([^:]+):[^}]+\}/g;
         let match;
-        while ((match = tagRegex.exec(formData.definition)) !== null) {
+        while ((match = tagRegex.exec(formData.description)) !== null) {
           const tagType = match[1];
-          if (!["w", "p", "t", "word", "writer", "title"].includes(tagType)) {
+          if (!/^[a-zA-Z0-9_]+$/.test(tagType)) {
             notifications.show({
               title: "Validation Error",
-              message: `Invalid tag type found: "${tagType}". Allowed types are: w, p, t, word, writer, title.`,
+              message: `Invalid tag type found: "${tagType}". Tag types must be alphanumeric (e.g. {writer: Name}).`,
               color: "red",
             });
             return;
@@ -343,7 +361,7 @@ export default function ItemEdit({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [formData, saveMutation]);
 
-  if (isLoadingItem) {
+  if (isLoadingEntity) {
     return (
       <Container>
         <Group justify="center" p="xl">
@@ -365,7 +383,7 @@ export default function ItemEdit({
           Back
         </Button>
         <Title order={2}>
-          {isNew ? "New Item" : `Edit: ${item?.word || ""}`}
+          {isNew ? "New Item" : `Edit: ${entity?.primaryLabel || ""}`}
         </Title>
         <div />
       </Group>
@@ -391,9 +409,9 @@ export default function ItemEdit({
                 <TextInput
                   label="Word"
                   required
-                  value={formData.word}
+                  value={formData.primaryLabel}
                   onChange={(e) =>
-                    setFormData({ ...formData, word: e.target.value })
+                    setFormData({ ...formData, primaryLabel: e.target.value })
                   }
                   autoFocus={isNew}
                 />
@@ -401,18 +419,15 @@ export default function ItemEdit({
               <Grid.Col span={2}>
                 <Select
                   label="Type"
-                  value={formData.type}
+                  value={formData.typeSlug}
                   onChange={(value) =>
-                    setFormData({ ...formData, type: value || "Reference" })
+                    setFormData({ ...formData, typeSlug: value || "reference" })
                   }
-                  data={[
-                    "Reference",
-                    "Definition",
-                    "Term",
-                    "Concept",
-                    "Title",
-                    "Writer",
-                  ]}
+                  data={appConfig.entityTypes.map((t) => ({
+                    value: t.slug,
+                    label: t.displayName,
+                  }))}
+                  searchable
                 />
               </Grid.Col>
             </Grid>
@@ -420,17 +435,17 @@ export default function ItemEdit({
             <Textarea
               label="Definition"
               rows={12}
-              value={formData.definition}
+              value={formData.description}
               onChange={(e) =>
-                setFormData({ ...formData, definition: e.target.value })
+                setFormData({ ...formData, description: e.target.value })
               }
-              placeholder="Enter the definition..."
-              description="Use {w: word}, {p: person}, or {t: title} to reference other items"
+              placeholder="Enter the description..."
+              description="Use {type: Name} to reference other items (e.g. {film: Rashomon}, {writer: Shakespeare})"
               autoFocus={!isNew}
             />
 
             {/* Reference Validation Indicators */}
-            {formData.definition &&
+            {formData.description &&
               (getExistingReferences().length > 0 ||
                 getMissingReferences().length > 0) && (
                 <Alert
@@ -470,7 +485,7 @@ export default function ItemEdit({
                               <Plus
                                 size={12}
                                 style={{ cursor: "pointer" }}
-                                onClick={() => handleCreateMissingItem(ref)}
+                                onClick={() => handleCreateMissingEntity(ref)}
                               />
                             }
                           >
@@ -515,18 +530,30 @@ export default function ItemEdit({
 
             <TextInput
               label="Etymology"
-              value={formData.derivation}
+              value={formData.attributes.derivation}
               onChange={(e) =>
-                setFormData({ ...formData, derivation: e.target.value })
+                setFormData({
+                  ...formData,
+                  attributes: {
+                    ...formData.attributes,
+                    derivation: e.target.value,
+                  },
+                })
               }
               placeholder="Word origin and derivation..."
             />
 
             <TextInput
               label="Notes / Appendices"
-              value={formData.appendicies}
+              value={formData.attributes.appendicies}
               onChange={(e) =>
-                setFormData({ ...formData, appendicies: e.target.value })
+                setFormData({
+                  ...formData,
+                  attributes: {
+                    ...formData.attributes,
+                    appendicies: e.target.value,
+                  },
+                })
               }
               placeholder="Additional notes, usage examples, etc..."
             />
@@ -535,9 +562,15 @@ export default function ItemEdit({
               <Grid.Col span={6}>
                 <TextInput
                   label="Source"
-                  value={formData.source}
+                  value={formData.attributes.source}
                   onChange={(e) =>
-                    setFormData({ ...formData, source: e.target.value })
+                    setFormData({
+                      ...formData,
+                      attributes: {
+                        ...formData.attributes,
+                        source: e.target.value,
+                      },
+                    })
                   }
                   placeholder="Reference source..."
                 />
@@ -545,9 +578,15 @@ export default function ItemEdit({
               <Grid.Col span={6}>
                 <TextInput
                   label="Page"
-                  value={formData.sourcePg}
+                  value={formData.attributes.sourcePg}
                   onChange={(e) =>
-                    setFormData({ ...formData, sourcePg: e.target.value })
+                    setFormData({
+                      ...formData,
+                      attributes: {
+                        ...formData.attributes,
+                        sourcePg: e.target.value,
+                      },
+                    })
                   }
                   placeholder="Page number..."
                 />
@@ -555,7 +594,7 @@ export default function ItemEdit({
             </Grid>
 
             {/* Image Paste Area */}
-            {formData.type === "Writer" && (
+            {formData.typeSlug === "writer" && (
               <Box>
                 <Group justify="space-between" mb="xs">
                   <Text size="sm" fw={500}>
@@ -653,9 +692,12 @@ export default function ItemEdit({
 
             <TextInput
               label="Mark / Tag"
-              value={formData.mark}
+              value={formData.attributes.mark}
               onChange={(e) =>
-                setFormData({ ...formData, mark: e.target.value })
+                setFormData({
+                  ...formData,
+                  attributes: { ...formData.attributes, mark: e.target.value },
+                })
               }
               placeholder="Optional mark or tag..."
             />

@@ -12,111 +12,6 @@ import (
 	"github.com/TrueBlocks/trueblocks-poetry/pkg/constants"
 )
 
-func (a *App) runMigration1() error {
-	// Check if migration already ran
-	if value, _ := a.db.GetSetting("migration_1"); value == "true" {
-		slog.Info("Migration 1 already completed, skipping")
-		return nil
-	}
-
-	slog.Info("Starting migration 1: normalizing all items")
-
-	// Get all items
-	items, err := a.db.GetAllItems()
-	if err != nil {
-		return fmt.Errorf("failed to get items for migration: %w", err)
-	}
-
-	slog.Info("Migration 1: processing items", "count", len(items))
-
-	// Get TTS cache directory for cleanup
-	cacheDir, err := constants.GetTTSCacheDir()
-	if err != nil {
-		slog.Warn("Migration 1: failed to get TTS cache dir", "error", err)
-	}
-
-	// Normalize each item
-	for i, item := range items {
-		if err := a.db.UpdateItem(item); err != nil {
-			slog.Warn("Migration 1: failed to update item", "itemId", item.ItemID, "word", item.Word, "error", err)
-			continue
-		}
-
-		// Delete TTS cache for this item (same as UpdateItem service does)
-		if cacheDir != "" {
-			cacheFile := fmt.Sprintf("%s/%d.mp3", cacheDir, item.ItemID)
-			if err := os.Remove(cacheFile); err != nil && !os.IsNotExist(err) {
-				slog.Warn("Migration 1: failed to delete TTS cache", "itemId", item.ItemID, "error", err)
-			}
-		}
-
-		// Log progress every 100 items
-		if (i+1)%100 == 0 {
-			slog.Info("Migration 1: progress", "processed", i+1, "total", len(items))
-		}
-	}
-
-	// Mark migration as complete
-	if err := a.db.SetSetting("migration_1", "true"); err != nil {
-		return fmt.Errorf("failed to save migration_1 setting: %w", err)
-	}
-
-	slog.Info("Migration 1: completed successfully", "items_processed", len(items))
-	return nil
-}
-
-// runMigration4 adds has_image and has_tts columns to items table
-func (a *App) runMigration4() error {
-	migrationKey := "migration_4"
-
-	// Check if migration already ran
-	val, err := a.db.GetSetting(migrationKey)
-	if err == nil && val == "true" {
-		slog.Info("Migration 4 already applied, skipping")
-		return nil
-	}
-
-	slog.Info("Running migration 4: adding has_image and has_tts columns")
-
-	// Add has_image column
-	_, err = a.db.Conn().Exec("ALTER TABLE items ADD COLUMN has_image INTEGER DEFAULT 0")
-	if err != nil {
-		return fmt.Errorf("failed to add has_image column: %w", err)
-	}
-
-	// Add has_tts column
-	_, err = a.db.Conn().Exec("ALTER TABLE items ADD COLUMN has_tts INTEGER DEFAULT 0")
-	if err != nil {
-		return fmt.Errorf("failed to add has_tts column: %w", err)
-	}
-
-	// Create index on has_image
-	_, err = a.db.Conn().Exec("CREATE INDEX idx_items_has_image ON items(has_image)")
-	if err != nil {
-		return fmt.Errorf("failed to create has_image index: %w", err)
-	}
-
-	// Create index on has_tts
-	_, err = a.db.Conn().Exec("CREATE INDEX idx_items_has_tts ON items(has_tts)")
-	if err != nil {
-		return fmt.Errorf("failed to create has_tts index: %w", err)
-	}
-
-	// Sync file flags from existing files
-	if err := a.db.SyncFileFlags(); err != nil {
-		slog.Warn("Failed to sync file flags after migration", "error", err)
-		// Don't fail the migration if sync fails
-	}
-
-	// Mark migration as complete
-	if err := a.db.SetSetting(migrationKey, "true"); err != nil {
-		return fmt.Errorf("failed to mark migration as complete: %w", err)
-	}
-
-	slog.Info("Migration 4 completed successfully")
-	return nil
-}
-
 // CheckpointDatabase flushes WAL to main database file
 func (a *App) CheckpointDatabase() error {
 	// slog.Info("[App] Checkpointing database WAL")
@@ -127,48 +22,6 @@ func (a *App) CheckpointDatabase() error {
 func (a *App) CleanOrphanedLinks() (int, error) {
 	// slog.Info("[App] Cleaning orphaned links")
 	return a.db.CleanOrphanedLinks()
-}
-
-// GetDanglingLinks returns links that point to non-existent items
-func (a *App) GetDanglingLinks() ([]services.DanglingLinkResult, error) {
-	query := database.MustLoadQuery("dangling_links")
-
-	rows, err := a.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get dangling links: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var results []services.DanglingLinkResult
-	for rows.Next() {
-		var linkID, sourceItemID, destinationItemID int
-		var linkType, sourceWord, sourceType, missingSide string
-		var sourceWordPtr, sourceTypePtr *string
-
-		err := rows.Scan(&linkID, &sourceItemID, &destinationItemID, &linkType, &sourceWordPtr, &sourceTypePtr, &missingSide)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
-		}
-
-		if sourceWordPtr != nil {
-			sourceWord = *sourceWordPtr
-		}
-		if sourceTypePtr != nil {
-			sourceType = *sourceTypePtr
-		}
-
-		results = append(results, services.DanglingLinkResult{
-			LinkID:            linkID,
-			SourceItemID:      sourceItemID,
-			DestinationItemID: destinationItemID,
-			LinkType:          linkType,
-			SourceWord:        sourceWord,
-			SourceType:        sourceType,
-			MissingSide:       missingSide,
-		})
-	}
-
-	return results, nil
 }
 
 // GetStats returns statistics about the database
@@ -191,58 +44,19 @@ func (a *App) GetDatabaseFileSize() (int64, error) {
 	return fileInfo.Size(), nil
 }
 
-// SearchItems performs full-text search on items
-func (a *App) GetRecentItems(limit int) ([]database.Item, error) {
-	return a.db.GetRecentItems(limit)
-}
-
-// GetExtendedStats returns detailed database statistics
-func (a *App) GetExtendedStats() (*database.DashboardStats, error) {
-	return a.db.GetExtendedStats()
-}
-
-// GetTopHubs returns items with the most connections
-func (a *App) GetTopHubs(limit int) ([]database.HubItem, error) {
-	return a.db.GetTopHubs(limit)
-}
-
-// GetMarkedItems returns items that have a mark
-func (a *App) GetMarkedItems() ([]database.Item, error) {
-	return a.db.GetMarkedItems()
-}
-
-// GetNavigationHistory returns the list of recently visited items
-func (a *App) GetNavigationHistory() ([]database.Item, error) {
-	historyIDs := a.settings.GetNavigationHistory()
-	var items []database.Item
-
-	for _, id := range historyIDs {
-		item, err := a.db.GetItem(id)
-		if err != nil {
-			slog.Warn("[GetNavigationHistory] Failed to get item", "id", id, "error", err)
-			continue
-		}
-		if item != nil {
-			items = append(items, *item)
-		}
-	}
-
-	return items, nil
-}
-
-// GetAllItems gets all items for export
-func (a *App) GetAllItems() ([]database.Item, error) {
-	return a.db.GetAllItems()
-}
-
-// GetAllLinks gets all links for export
-func (a *App) GetAllLinks() ([]database.Link, error) {
-	return a.db.GetAllLinks()
+// GetAllRelationships gets all relationships for export
+func (a *App) GetAllRelationships() ([]database.Relationship, error) {
+	return a.entityService.GetAllRelationships()
 }
 
 // GetEgoGraph gets the ego graph for a given node
-func (a *App) GetEgoGraph(centerNodeID int, depth int) (*database.GraphData, error) {
-	return a.db.GetEgoGraph(centerNodeID, depth)
+func (a *App) GetEgoGraph(centerNodeID int, depth int) (*services.GraphData, error) {
+	return a.entityService.GetEgoGraph(centerNodeID)
+}
+
+// GetAllGraphData gets the full graph
+func (a *App) GetAllGraphData() (*services.GraphData, error) {
+	return a.entityService.GetAllGraphData()
 }
 
 // GetEnvVars returns all environment variables from .env file
@@ -436,9 +250,4 @@ func (a *App) GetEnvLocation() string {
 	}
 
 	return "No .env file found"
-}
-
-// SpeakWord uses OpenAI's text-to-speech API to pronounce text with gender-matched voices and caching
-func (a *App) SpeakWord(text string, itemType string, itemWord string, itemID int) TTSResult {
-	return a.ttsService.SpeakWord(text, itemType, itemWord, itemID)
 }

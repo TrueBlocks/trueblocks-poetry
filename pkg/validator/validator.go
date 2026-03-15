@@ -23,17 +23,17 @@ func ValidateLinkType(linkType string) error {
 	return nil
 }
 
-// ValidateItem checks if an item has required fields
-func ValidateItem(item database.Item) error {
-	if strings.TrimSpace(item.Word) == "" {
-		return fmt.Errorf("item word cannot be empty")
+// ValidateEntity checks if an entity has required fields
+func ValidateEntity(entity database.Entity) error {
+	if strings.TrimSpace(entity.PrimaryLabel) == "" {
+		return fmt.Errorf("entity primary label cannot be empty")
 	}
-	if strings.TrimSpace(item.Type) == "" {
-		return fmt.Errorf("item type cannot be empty")
+	if strings.TrimSpace(entity.TypeSlug) == "" {
+		return fmt.Errorf("entity type slug cannot be empty")
 	}
-	// Length checks could be added here, e.g. max 255 chars for Word
-	if len(item.Word) > 255 {
-		return fmt.Errorf("item word too long (max 255 characters)")
+	// Length checks could be added here, e.g. max 255 chars for PrimaryLabel
+	if len(entity.PrimaryLabel) > 255 {
+		return fmt.Errorf("entity primary label too long (max 255 characters)")
 	}
 	return nil
 }

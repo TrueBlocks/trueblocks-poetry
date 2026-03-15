@@ -7,36 +7,45 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { Network, Volume2, Copy } from "lucide-react";
-import { SpeakWord } from "@wailsjs/go/main/App.js";
-import { useItemImage, useCapabilities } from "@hooks/useItemData";
+import { SpeakWord } from "@wailsjs/go/services/TTSService";
+import { useEntityImage, useCapabilities } from "@hooks/useEntityData";
 import { prepareTTSText } from "@utils/tts";
-import { REFERENCE_COLOR_MAP } from "@utils/references";
 import { database } from "@models";
+import { appConfig } from "@/config";
 
 interface ReferenceLinkProps {
-  matchedItem: database.Item;
+  matchedEntity: database.Entity;
   displayWord: string;
-  refType: string;
   stopAudio: () => void;
   currentAudioRef: React.MutableRefObject<HTMLAudioElement | null>;
-  parentItem?: database.Item;
+  parentEntity?: database.Entity;
 }
 
 export function ReferenceLink({
-  matchedItem,
+  matchedEntity,
   displayWord,
-  refType,
   stopAudio,
   currentAudioRef,
-  parentItem,
+  parentEntity,
 }: ReferenceLinkProps) {
   const theme = useMantineTheme();
   const { colorScheme } = useMantineColorScheme();
-  const imageUrl = useItemImage(matchedItem.itemId, matchedItem.type);
+  const imageUrl = useEntityImage(matchedEntity.id, matchedEntity.typeSlug);
   const { data: capabilities } = useCapabilities();
 
   const isDark = colorScheme === "dark";
-  const colorName = REFERENCE_COLOR_MAP[refType];
+
+  // Find color from config
+  const entityConfig = appConfig.entityTypes.find(
+    (t) => t.slug === matchedEntity.typeSlug,
+  );
+  // Fallback for legacy "word" type which maps to "reference" in config
+  const configSlug =
+    matchedEntity.typeSlug === "word" ? "reference" : matchedEntity.typeSlug;
+  const resolvedConfig =
+    entityConfig || appConfig.entityTypes.find((t) => t.slug === configSlug);
+
+  const colorName = resolvedConfig?.color;
   const color = colorName
     ? theme.colors[colorName][isDark ? 3 : 6]
     : isDark
@@ -45,15 +54,15 @@ export function ReferenceLink({
 
   // Check if this is a Title with quoted text
   const hasQuotedText =
-    matchedItem.type === "Title" &&
-    matchedItem.definition &&
-    /\[\s*\n/.test(matchedItem.definition);
+    matchedEntity.typeSlug === "title" &&
+    matchedEntity.description &&
+    /\[\s*\n/.test(matchedEntity.description);
 
   // Check if this link is part of a "Written by:" line in a Title item
   const isWrittenByLine =
-    parentItem?.type === "Title" &&
-    parentItem?.definition?.includes(
-      `Written by: {writer: ${matchedItem.word}}`,
+    parentEntity?.typeSlug === "title" &&
+    parentEntity?.description?.includes(
+      `Written by: {writer: ${matchedEntity.primaryLabel}}`,
     );
 
   const handleTTSClick = async (e: React.MouseEvent) => {
@@ -63,8 +72,8 @@ export function ReferenceLink({
     stopAudio();
 
     const finalText = prepareTTSText(
-      matchedItem.definition || "",
-      matchedItem.word,
+      matchedEntity.description || "",
+      matchedEntity.primaryLabel,
     );
     if (!finalText) {
       notifications.show({
@@ -86,9 +95,9 @@ export function ReferenceLink({
     try {
       const result = await SpeakWord(
         finalText,
-        parentItem?.type || "",
-        parentItem?.word || "",
-        1,
+        matchedEntity.typeSlug,
+        matchedEntity.primaryLabel,
+        matchedEntity.id,
       );
 
       if (result.error) {
@@ -149,7 +158,7 @@ export function ReferenceLink({
 
       notifications.show({
         title: "Playing Quote",
-        message: `"${matchedItem.word}"`,
+        message: `"${matchedEntity.primaryLabel}"`,
         color: "green",
         autoClose: 3000,
       });
@@ -169,7 +178,7 @@ export function ReferenceLink({
     e.stopPropagation();
 
     const quoteRegex = /\[\s*\n([\s\S]*?)\n\s*\]/;
-    const match = matchedItem.definition?.match(quoteRegex);
+    const match = matchedEntity.description?.match(quoteRegex);
     if (match && match[1]) {
       const quotedText = match[1].replace(/[\\\/]$/gm, "").trim();
       await navigator.clipboard.writeText(quotedText);
@@ -182,11 +191,18 @@ export function ReferenceLink({
     }
   };
 
+  const isLegacyType = ["reference", "writer", "title"].includes(
+    matchedEntity.typeSlug,
+  );
+  const linkTo = isLegacyType
+    ? `/item/${matchedEntity.id}?tab=detail`
+    : `/entities/${matchedEntity.typeSlug}/${matchedEntity.id}`;
+
   return (
     <span style={{ whiteSpace: "nowrap" }}>
       <Anchor
         component={Link}
-        to={`/item/${matchedItem.itemId}?tab=detail`}
+        to={linkTo}
         onClick={(e: React.MouseEvent) => {
           if (e.metaKey || e.ctrlKey) {
             e.preventDefault();
@@ -205,7 +221,7 @@ export function ReferenceLink({
       {imageUrl && !isWrittenByLine && (
         <Anchor
           component={Link}
-          to={`/item/${matchedItem.itemId}?tab=detail`}
+          to={`/item/${matchedEntity.id}?tab=detail`}
           style={{
             marginLeft: "6px",
             display: "inline-block",
@@ -226,23 +242,6 @@ export function ReferenceLink({
           />
         </Anchor>
       )}
-
-      <Anchor
-        component={Link}
-        to={`/item/${matchedItem.itemId}?tab=graph`}
-        onClick={(e: React.MouseEvent) => {
-          e.stopPropagation();
-        }}
-        style={{
-          marginLeft: "6px",
-          display: "inline-block",
-          verticalAlign: "middle",
-          opacity: 0.6,
-        }}
-        title="Show in graph"
-      >
-        <Network size={14} />
-      </Anchor>
 
       {hasQuotedText && (
         <>
@@ -281,6 +280,23 @@ export function ReferenceLink({
           </ActionIcon>
         </>
       )}
+
+      <Anchor
+        component={Link}
+        to={`/item/${matchedEntity.id}?tab=graph`}
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation();
+        }}
+        style={{
+          marginLeft: "6px",
+          display: "inline-block",
+          verticalAlign: "middle",
+          opacity: 0.6,
+        }}
+        title="Show in graph"
+      >
+        <Network size={14} />
+      </Anchor>
     </span>
   );
 }

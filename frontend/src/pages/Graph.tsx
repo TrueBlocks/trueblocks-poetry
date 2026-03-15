@@ -44,19 +44,23 @@ import {
 } from "lucide-react";
 import { useNavigate, Link, useParams } from "react-router-dom";
 import {
-  GetItem,
-  GetItemLinks,
-  GetItemImage,
+  GetEntityImage,
   GetEgoGraph,
+  GetAllGraphData,
 } from "@wailsjs/go/main/App.js";
+import {
+  GetEntity,
+  GetRelationships,
+} from "@wailsjs/go/services/EntityService";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
-import { getItemColor, getItemTextColor } from "@utils/colors";
+import { getEntityColor, getEntityTextColor } from "@utils/colors";
 import { useUIStore } from "@stores/useUIStore";
 import { database } from "@models";
 
-// D3 simulation node type
-interface GraphNode extends database.Item {
-  id: string;
+// D3 simulation node.typeSlug
+interface GraphNode extends Omit<database.Entity, "id"> {
+  id: string; // D3 uses string IDs
+  originalId: number; // Keep the original numeric ID
   connections: number;
   x?: number;
   y?: number;
@@ -76,7 +80,7 @@ interface GraphLink {
 interface CustomNodeData extends Record<string, unknown> {
   label: string;
   id: number;
-  type: string;
+  typeSlug: string;
   isSelected?: boolean;
   connections: number;
   definition?: string;
@@ -90,14 +94,14 @@ function CustomNode({ data }: { data: CustomNodeData }) {
     if (data.isSelected) {
       return "#FFFFE0"; // light yellow
     }
-    return getItemColor(data.type);
+    return getEntityColor(data.typeSlug);
   };
 
   return (
     <div
       style={{
         backgroundColor: getBackgroundColor(),
-        color: getItemTextColor(data.type),
+        color: getEntityTextColor(data.typeSlug || ""),
         padding: data.isSelected ? "0.17rem 0.35rem" : "0.12rem 0.25rem",
         borderRadius: "0.5rem",
         border: "2px solid #9CA3AF",
@@ -110,7 +114,7 @@ function CustomNode({ data }: { data: CustomNodeData }) {
         alignItems: "center",
         gap: "4px",
       }}
-      title={data.definition || data.label}
+      title={data.definition || data.label || ""}
     >
       <Handle
         type="target"
@@ -183,7 +187,7 @@ export default function Graph() {
   // Filter states
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [visibleTypes, setVisibleTypes] = useState<Set<string>>(
-    new Set(["Reference", "Writer", "Title"]),
+    new Set(["reference", "writer", "title"]),
   );
   const [minConnections, setMinConnections] = useState<number>(2);
 
@@ -201,18 +205,18 @@ export default function Graph() {
       if (selectedNode) {
         return GetEgoGraph(selectedNode, 1);
       }
-      return null;
+      return GetAllGraphData();
     },
   });
 
-  const items = useMemo(() => graphData?.items || [], [graphData]);
-  const links = useMemo(() => graphData?.links || [], [graphData]);
+  const items = useMemo(() => graphData?.nodes || [], [graphData]);
+  const links = useMemo(() => graphData?.edges || [], [graphData]);
 
   // Query for selected item's links (for the connections sidebar)
   const { data: selectedItemLinks } = useQuery({
     queryKey: ["itemLinks", selectedNode],
     queryFn: () =>
-      selectedNode ? GetItemLinks(selectedNode) : Promise.resolve([]),
+      selectedNode ? GetRelationships(selectedNode) : Promise.resolve([]),
     enabled: selectedNode !== null,
   });
 
@@ -220,17 +224,17 @@ export default function Graph() {
   const linkedItemIds = selectedItemLinks
     ? [
         ...new Set([
-          ...selectedItemLinks.map((l) => l.sourceItemId),
-          ...selectedItemLinks.map((l) => l.destinationItemId),
+          ...selectedItemLinks.map((l) => l.sourceId),
+          ...selectedItemLinks.map((l) => l.targetId),
         ]),
       ].filter((id) => id !== selectedNode)
     : [];
 
   // Query for linked items details
   const linkedItemsQueries = useQueries({
-    queries: linkedItemIds.map((itemId: number) => ({
-      queryKey: ["item", itemId],
-      queryFn: () => GetItem(itemId),
+    queries: linkedItemIds.map((id: number) => ({
+      queryKey: ["entity", id],
+      queryFn: () => GetEntity(id),
       staleTime: 60000,
     })),
   });
@@ -296,7 +300,7 @@ export default function Graph() {
     });
   };
 
-  const allTypes = ["Reference", "Writer", "Title"];
+  const allTypes = ["reference", "writer", "title"];
 
   useEffect(() => {
     if (!items || !links) return;
@@ -309,16 +313,16 @@ export default function Graph() {
     let visibleLinks = links;
     if (selectedNode !== null) {
       const selectedNodeId = Number(selectedNode);
-      const selectedItem = items.find((i) => i.itemId === selectedNodeId);
-      const itemType = selectedItem ? selectedItem.type : "Reference";
+      const selectedItem = items.find((i) => i.id === selectedNodeId);
+      const itemType = selectedItem ? selectedItem.typeSlug : "reference";
 
       const incomingMap = new Set<number>();
       const outgoingMap = new Set<number>();
 
       // Map connections
       links.forEach((l) => {
-        const sourceId = Number(l.sourceItemId);
-        const destId = Number(l.destinationItemId);
+        const sourceId = Number(l.sourceId);
+        const destId = Number(l.targetId);
         if (destId === selectedNodeId) incomingMap.add(sourceId);
         if (sourceId === selectedNodeId) outgoingMap.add(destId);
       });
@@ -334,8 +338,8 @@ export default function Graph() {
       }
 
       visibleLinks = links.filter((l) => {
-        const sourceId = Number(l.sourceItemId);
-        const destId = Number(l.destinationItemId);
+        const sourceId = Number(l.sourceId);
+        const destId = Number(l.targetId);
 
         // Remove self-loops in Radial Layout as they look messy
         if (sourceId === destId) return false;
@@ -345,11 +349,11 @@ export default function Graph() {
         // AND that Title is ALSO in the outgoing map (bidirectional),
         // then HIDE the incoming link.
         // Writers "write" Titles (outgoing), so the incoming "written by" link is redundant in the graph.
-        if (itemType === "Writer") {
+        if (itemType === "writer") {
           if (destId === selectedNodeId) {
             // This is an incoming link (Source -> Writer)
-            const sourceItem = items.find((i) => i.itemId === sourceId);
-            if (sourceItem?.type === "Title") {
+            const sourceItem = items.find((i) => i.id === sourceId);
+            if (sourceItem?.typeSlug === "title") {
               // It's a Title -> Writer link.
               // Check if we also have Writer -> Title (outgoing)
               if (outgoingMap.has(sourceId)) {
@@ -367,12 +371,12 @@ export default function Graph() {
     const connectionCounts = new Map<number, number>();
     links.forEach((link) => {
       connectionCounts.set(
-        link.sourceItemId,
-        (connectionCounts.get(link.sourceItemId) || 0) + 1,
+        link.sourceId,
+        (connectionCounts.get(link.sourceId) || 0) + 1,
       );
       connectionCounts.set(
-        link.destinationItemId,
-        (connectionCounts.get(link.destinationItemId) || 0) + 1,
+        link.targetId,
+        (connectionCounts.get(link.targetId) || 0) + 1,
       );
     });
 
@@ -383,18 +387,17 @@ export default function Graph() {
       // Show only selected node and its direct connections
       const connectedIds = new Set<number>([selectedNode]);
       visibleLinks.forEach((link) => {
-        if (link.sourceItemId === selectedNode)
-          connectedIds.add(link.destinationItemId);
-        if (link.destinationItemId === selectedNode)
-          connectedIds.add(link.sourceItemId);
+        if (link.sourceId === selectedNode) connectedIds.add(link.targetId);
+        if (link.targetId === selectedNode) connectedIds.add(link.sourceId);
       });
-      filteredItems = items.filter((item) => connectedIds.has(item.itemId));
+      filteredItems = items.filter((item) => connectedIds.has(item.id));
     } else {
       // Normal filtering when no node is selected
       filteredItems = items.filter((item) => {
-        const connections = connectionCounts.get(item.itemId) || 0;
+        const connections = connectionCounts.get(item.id) || 0;
         if (connections < minConnections) return false;
-        if (visibleTypes.size > 0 && !visibleTypes.has(item.type)) return false;
+        if (visibleTypes.size > 0 && !visibleTypes.has(item.typeSlug))
+          return false;
         return true;
       });
 
@@ -403,8 +406,8 @@ export default function Graph() {
         filteredItems = filteredItems
           .sort(
             (a, b) =>
-              (connectionCounts.get(b.itemId) || 0) -
-              (connectionCounts.get(a.itemId) || 0),
+              (connectionCounts.get(b.id) || 0) -
+              (connectionCounts.get(a.id) || 0),
           )
           .slice(0, 500);
       }
@@ -415,20 +418,13 @@ export default function Graph() {
 
     if (selectedNode !== null) {
       // RADIAL LAYOUT: Duplicate nodes for bidirectional links
-      const centerItem = filteredItems.find((i) => i.itemId === selectedNode);
+      const centerItem = filteredItems.find((i) => i.id === selectedNode);
       if (centerItem) {
         simulationNodes.push({
-          id: String(centerItem.itemId),
-          itemId: centerItem.itemId,
-          word: centerItem.word,
-          type: centerItem.type,
-          connections: connectionCounts.get(centerItem.itemId) || 0,
-          definition: centerItem.definition,
-          createdAt: centerItem.createdAt,
-          modifiedAt: centerItem.modifiedAt,
-          hasImage: centerItem.hasImage || 0,
-          hasTts: centerItem.hasTts || 0,
-          convertValues: centerItem.convertValues,
+          ...centerItem,
+          id: String(centerItem.id),
+          originalId: centerItem.id,
+          connections: connectionCounts.get(centerItem.id) || 0,
           x: 0,
           y: 0,
           fx: 0,
@@ -437,32 +433,21 @@ export default function Graph() {
       }
 
       filteredItems.forEach((item) => {
-        if (item.itemId === selectedNode) return;
+        if (item.id === selectedNode) return;
 
         const isIncoming = visibleLinks.some(
-          (l) =>
-            l.destinationItemId === selectedNode &&
-            l.sourceItemId === item.itemId,
+          (l) => l.targetId === selectedNode && l.sourceId === item.id,
         );
         const isOutgoing = visibleLinks.some(
-          (l) =>
-            l.sourceItemId === selectedNode &&
-            l.destinationItemId === item.itemId,
+          (l) => l.sourceId === selectedNode && l.targetId === item.id,
         );
 
         if (isIncoming) {
           simulationNodes.push({
-            id: `${item.itemId}-in`,
-            itemId: item.itemId,
-            word: item.word,
-            type: item.type,
-            connections: connectionCounts.get(item.itemId) || 0,
-            definition: item.definition,
-            createdAt: item.createdAt,
-            modifiedAt: item.modifiedAt,
-            hasImage: item.hasImage || 0,
-            hasTts: item.hasTts || 0,
-            convertValues: item.convertValues,
+            ...item,
+            id: `${item.id}-in`,
+            originalId: item.id,
+            connections: connectionCounts.get(item.id) || 0,
             x: Math.random() * 500,
             y: Math.random() * 500,
             isIncomingNode: true,
@@ -471,17 +456,10 @@ export default function Graph() {
 
         if (isOutgoing) {
           simulationNodes.push({
-            id: `${item.itemId}-out`,
-            itemId: item.itemId,
-            word: item.word,
-            type: item.type,
-            connections: connectionCounts.get(item.itemId) || 0,
-            definition: item.definition,
-            createdAt: item.createdAt,
-            modifiedAt: item.modifiedAt,
-            hasImage: item.hasImage || 0,
-            hasTts: item.hasTts || 0,
-            convertValues: item.convertValues,
+            ...item,
+            id: `${item.id}-out`,
+            originalId: item.id,
+            connections: connectionCounts.get(item.id) || 0,
             x: Math.random() * 500,
             y: Math.random() * 500,
             isOutgoingNode: true,
@@ -491,17 +469,10 @@ export default function Graph() {
     } else {
       // STANDARD LAYOUT
       simulationNodes = filteredItems.map((item) => ({
-        id: String(item.itemId),
-        itemId: item.itemId,
-        word: item.word,
-        type: item.type,
-        connections: connectionCounts.get(item.itemId) || 0,
-        definition: item.definition,
-        createdAt: item.createdAt,
-        modifiedAt: item.modifiedAt,
-        hasImage: item.hasImage || 0,
-        hasTts: item.hasTts || 0,
-        convertValues: item.convertValues,
+        ...item,
+        id: String(item.id),
+        originalId: item.id,
+        connections: connectionCounts.get(item.id) || 0,
         x: Math.random() * 500,
         y: Math.random() * 500,
         fx: undefined,
@@ -514,8 +485,8 @@ export default function Graph() {
     const simulationLinks: GraphLink[] = [];
 
     visibleLinks.forEach((link) => {
-      const sourceId = String(link.sourceItemId);
-      const targetId = String(link.destinationItemId);
+      const sourceId = String(link.sourceId);
+      const targetId = String(link.targetId);
 
       if (selectedNode !== null) {
         // Radial Logic: Connect to specific -in/-out nodes
@@ -543,7 +514,9 @@ export default function Graph() {
     // LAYOUT LOGIC
     if (selectedNode !== null) {
       // RADIAL LAYOUT
-      const centerNode = simulationNodes.find((n) => n.itemId === selectedNode);
+      const centerNode = simulationNodes.find(
+        (n) => n.originalId === selectedNode,
+      );
 
       if (centerNode) {
         // Place center node at origin
@@ -645,14 +618,14 @@ export default function Graph() {
     const titleToWriter = new Map<number, number>();
     if (visibleLinks) {
       visibleLinks.forEach((l) => {
-        const source = items.find((i) => i.itemId === l.sourceItemId);
-        const dest = items.find((i) => i.itemId === l.destinationItemId);
+        const source = items.find((i) => i.id === l.sourceId);
+        const dest = items.find((i) => i.id === l.targetId);
 
-        if (source?.type === "Title" && dest?.type === "Writer") {
-          titleToWriter.set(source.itemId, dest.itemId);
+        if (source?.typeSlug === "title" && dest?.typeSlug === "writer") {
+          titleToWriter.set(source.id, dest.id);
         }
-        if (dest?.type === "Title" && source?.type === "Writer") {
-          titleToWriter.set(dest.itemId, source.itemId);
+        if (dest?.typeSlug === "title" && source?.typeSlug === "writer") {
+          titleToWriter.set(dest.id, source.id);
         }
       });
     }
@@ -664,20 +637,20 @@ export default function Graph() {
       // Approx width: char count * 8px + 20px padding
       // Approx height: 36px
       position: {
-        x: (node.x ?? 0) - (node.word.length * 4 + 10),
+        x: (node.x ?? 0) - (node.primaryLabel.length * 4 + 10),
         y: (node.y ?? 0) - 30,
       },
       data: {
-        id: node.itemId,
-        label: node.word,
-        type: node.type,
+        id: node.originalId,
+        label: node.primaryLabel,
+        typeSlug: node.typeSlug,
         connections: node.connections,
-        definition: node.definition,
-        isSelected: node.itemId === selectedNode,
+        definition: node.description,
+        isSelected: node.id === String(selectedNode),
         image:
-          nodeImages[node.itemId] ||
-          (node.type === "Title"
-            ? nodeImages[titleToWriter.get(node.itemId) || 0]
+          nodeImages[node.originalId] ||
+          (node.typeSlug === "title"
+            ? nodeImages[titleToWriter.get(node.originalId) || 0]
             : null),
       },
     }));
@@ -685,8 +658,8 @@ export default function Graph() {
     const newEdges: Edge[] = [];
 
     visibleLinks.forEach((link) => {
-      const sourceId = String(link.sourceItemId);
-      const targetId = String(link.destinationItemId);
+      const sourceId = String(link.sourceId);
+      const targetId = String(link.targetId);
 
       const edgeStyle = { stroke: "rgba(150, 150, 150, 0.3)", strokeWidth: 2 };
       const markerColor = "rgba(150, 150, 150, 0.4)";
@@ -746,10 +719,10 @@ export default function Graph() {
     // Identify needed images
     const neededImageIds = new Set<number>();
     simulationNodes.forEach((node) => {
-      if (node.type === "Writer") {
-        neededImageIds.add(node.itemId);
-      } else if (node.type === "Title") {
-        const writerId = titleToWriter.get(node.itemId);
+      if (node.typeSlug === "writer") {
+        neededImageIds.add(node.originalId);
+      } else if (node.typeSlug === "title") {
+        const writerId = titleToWriter.get(node.originalId);
         if (writerId) neededImageIds.add(writerId);
       }
     });
@@ -762,7 +735,7 @@ export default function Graph() {
     if (missingIds.length > 0) {
       // Fetch asynchronously
       Promise.all(
-        missingIds.map((id) => GetItemImage(id).then((img) => ({ id, img }))),
+        missingIds.map((id) => GetEntityImage(id).then((img) => ({ id, img }))),
       ).then((results) => {
         setNodeImages((prev) => {
           const next = { ...prev };
@@ -886,7 +859,7 @@ export default function Graph() {
                 {allTypes.map((type) => (
                   <Checkbox
                     key={type}
-                    label={type}
+                    label={type.charAt(0).toUpperCase() + type.slice(1)}
                     checked={visibleTypes.has(type)}
                     onChange={() => toggleType(type)}
                     size="xs"
@@ -994,7 +967,7 @@ export default function Graph() {
                   <Text size="sm" fw={500}>
                     Outgoing (
                     {selectedItemLinks?.filter(
-                      (l) => l.sourceItemId === selectedNode,
+                      (l) => l.sourceId === selectedNode,
                     ).length || 0}
                     )
                   </Text>
@@ -1002,26 +975,25 @@ export default function Graph() {
                 {!outgoingCollapsed && (
                   <Stack gap="xs">
                     {selectedItemLinks &&
-                    selectedItemLinks.filter(
-                      (l) => l.sourceItemId === selectedNode,
-                    ).length > 0 ? (
+                    selectedItemLinks.filter((l) => l.sourceId === selectedNode)
+                      .length > 0 ? (
                       selectedItemLinks
-                        .filter((link) => link.sourceItemId === selectedNode)
+                        .filter((link) => link.sourceId === selectedNode)
                         .map((link) => {
-                          const linkedItemId = link.destinationItemId;
+                          const linkedItemId = link.targetId;
                           const linkedItemQuery = linkedItemsQueries.find(
-                            (q) => q.data?.itemId === linkedItemId,
+                            (q) => q.data?.id === linkedItemId,
                           );
                           const linkedItem = linkedItemQuery?.data;
 
                           return (
                             <Paper
-                              key={link.linkId}
+                              key={link.id}
                               p="xs"
                               withBorder
                               style={{
-                                backgroundColor: linkedItem?.type
-                                  ? getItemColor(linkedItem.type)
+                                backgroundColor: linkedItem?.typeSlug
+                                  ? getEntityColor(linkedItem.typeSlug)
                                   : undefined,
                               }}
                             >
@@ -1044,7 +1016,7 @@ export default function Graph() {
                                       }
                                     }}
                                   >
-                                    {linkedItem.word}
+                                    {linkedItem.primaryLabel}
                                   </Text>
                                   <ActionIcon
                                     size="xs"
@@ -1091,7 +1063,7 @@ export default function Graph() {
                   <Text size="sm" fw={500}>
                     Incoming (
                     {selectedItemLinks?.filter(
-                      (l) => l.destinationItemId === selectedNode,
+                      (l) => l.targetId === selectedNode,
                     ).length || 0}
                     )
                   </Text>
@@ -1099,28 +1071,25 @@ export default function Graph() {
                 {!incomingCollapsed && (
                   <Stack gap="xs">
                     {selectedItemLinks &&
-                    selectedItemLinks.filter(
-                      (l) => l.destinationItemId === selectedNode,
-                    ).length > 0 ? (
+                    selectedItemLinks.filter((l) => l.targetId === selectedNode)
+                      .length > 0 ? (
                       selectedItemLinks
-                        .filter(
-                          (link) => link.destinationItemId === selectedNode,
-                        )
+                        .filter((link) => link.targetId === selectedNode)
                         .map((link) => {
-                          const linkedItemId = link.sourceItemId;
+                          const linkedItemId = link.sourceId;
                           const linkedItemQuery = linkedItemsQueries.find(
-                            (q) => q.data?.itemId === linkedItemId,
+                            (q) => q.data?.id === linkedItemId,
                           );
                           const linkedItem = linkedItemQuery?.data;
 
                           return (
                             <Paper
-                              key={link.linkId}
+                              key={link.id}
                               p="xs"
                               withBorder
                               style={{
-                                backgroundColor: linkedItem?.type
-                                  ? getItemColor(linkedItem.type)
+                                backgroundColor: linkedItem?.typeSlug
+                                  ? getEntityColor(linkedItem.typeSlug)
                                   : undefined,
                               }}
                             >
@@ -1143,7 +1112,7 @@ export default function Graph() {
                                       }
                                     }}
                                   >
-                                    {linkedItem.word}
+                                    {linkedItem.primaryLabel}
                                   </Text>
                                   <ActionIcon
                                     size="xs"

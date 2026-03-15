@@ -11,7 +11,10 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useState } from "react";
-import { GetDuplicateItems, MergeDuplicateItems } from "@wailsjs/go/main/App";
+import {
+  GetDuplicateEntities,
+  MergeDuplicateEntities,
+} from "@wailsjs/go/main/App";
 import { AlertTriangle } from "lucide-react";
 import { DuplicateResult } from "./types";
 import { LogError } from "@utils/logger";
@@ -25,19 +28,19 @@ export function DuplicateItemsReport() {
   const { data: duplicates, isLoading } = useQuery({
     queryKey: ["duplicateItems"],
     queryFn: async () => {
-      const results = await GetDuplicateItems();
+      const results = await GetDuplicateEntities();
       return results as DuplicateResult[];
     },
   });
 
   const handleDeleteDuplicates = async (
     originalId: number,
-    strippedWord: string,
+    strippedLabel: string,
     duplicateIds: number[],
   ) => {
-    setDeletingDuplicates(strippedWord);
+    setDeletingDuplicates(strippedLabel);
     try {
-      await MergeDuplicateItems(originalId, duplicateIds);
+      await MergeDuplicateEntities(originalId, duplicateIds);
       queryClient.invalidateQueries({ queryKey: ["duplicateItems"] });
       queryClient.invalidateQueries({ queryKey: ["unlinkedReferences"] });
       queryClient.invalidateQueries({ queryKey: ["orphanedItems"] });
@@ -94,21 +97,21 @@ export function DuplicateItemsReport() {
             </Table.Thead>
             <Table.Tbody>
               {duplicates.map((group) => {
-                const isDeleting = deletingDuplicates === group.strippedWord;
-                const duplicateIds = group.duplicates.map((d) => d.itemId);
+                const isDeleting = deletingDuplicates === group.strippedLabel;
+                const duplicateIds = group.duplicates.map((d) => d.id);
 
                 return (
-                  <Table.Tr key={group.strippedWord}>
+                  <Table.Tr key={group.strippedLabel}>
                     <Table.Td>
                       <Anchor
                         component={Link}
-                        to={`/item/${group.original.itemId}?tab=detail`}
+                        to={`/item/${group.original.id}?tab=detail`}
                         fw={600}
                       >
-                        {group.original.word}
+                        {group.original.primaryLabel}
                       </Anchor>
                       <Badge size="xs" ml="xs">
-                        {group.original.type}
+                        {group.original.typeSlug}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
@@ -121,12 +124,12 @@ export function DuplicateItemsReport() {
                       >
                         {group.duplicates.map((dup) => (
                           <Badge
-                            key={dup.itemId}
+                            key={dup.id}
                             size="sm"
                             color="red"
                             variant="light"
                           >
-                            {dup.word} ({dup.type})
+                            {dup.primaryLabel} ({dup.typeSlug})
                           </Badge>
                         ))}
                       </div>
@@ -139,8 +142,8 @@ export function DuplicateItemsReport() {
                         loading={isDeleting}
                         onClick={() =>
                           handleDeleteDuplicates(
-                            group.original.itemId,
-                            group.strippedWord,
+                            group.original.id,
+                            group.strippedLabel,
                             duplicateIds,
                           )
                         }

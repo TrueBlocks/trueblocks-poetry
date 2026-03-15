@@ -9,7 +9,7 @@ import {
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { GetOrphanedItems } from "@wailsjs/go/main/App";
+import { GetOrphanedEntities } from "@wailsjs/go/main/App";
 import { AlertTriangle } from "lucide-react";
 import { OrphanedItemResult } from "./types";
 
@@ -17,7 +17,7 @@ export function OrphanedItemsReport() {
   const { data: orphanedItems, isLoading } = useQuery({
     queryKey: ["orphanedItems"],
     queryFn: async () => {
-      const results = await GetOrphanedItems();
+      const results = await GetOrphanedEntities();
       return results as OrphanedItemResult[];
     },
   });
@@ -62,18 +62,18 @@ export function OrphanedItemsReport() {
             </Table.Thead>
             <Table.Tbody>
               {orphanedItems.map((item) => (
-                <Table.Tr key={item.itemId}>
+                <Table.Tr key={item.id}>
                   <Table.Td>
                     <Anchor
                       component={Link}
-                      to={`/item/${item.itemId}?tab=detail`}
+                      to={`/item/${item.id}?tab=detail`}
                       fw={600}
                     >
-                      {item.word}
+                      {item.primaryLabel}
                     </Anchor>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm">{item.type}</Badge>
+                    <Badge size="sm">{item.typeSlug}</Badge>
                   </Table.Td>
                 </Table.Tr>
               ))}

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { GetAllItems } from "@wailsjs/go/main/App.js";
+import { GetAllEntities } from "@wailsjs/go/services/EntityService";
 import { parseReferences } from "@utils/references";
+import { database } from "@models";
 
 interface ValidationResult {
   reference: string;
@@ -38,7 +39,7 @@ export function useReferenceValidation(text: string, debounceMs: number = 500) {
   // Fetch all items for validation
   const { data: allItems } = useQuery({
     queryKey: ["allItems"],
-    queryFn: GetAllItems,
+    queryFn: GetAllEntities,
     staleTime: 30000, // Cache for 30 seconds
   });
 
@@ -54,13 +55,14 @@ export function useReferenceValidation(text: string, debounceMs: number = 500) {
 
     for (const ref of references) {
       const matchedItem = allItems.find(
-        (item) => item.word.toLowerCase() === ref.toLowerCase(),
+        (item: database.Entity) =>
+          item.primaryLabel.toLowerCase() === ref.toLowerCase(),
       );
 
       results.set(ref, {
         reference: ref,
         exists: !!matchedItem,
-        itemId: matchedItem?.itemId,
+        itemId: matchedItem?.id,
       });
     }
 

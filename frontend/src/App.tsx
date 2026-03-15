@@ -16,6 +16,8 @@ import Settings from "./pages/Settings";
 import Reports from "./pages/Reports";
 import Tables from "./pages/Tables";
 import Experimental from "./pages/Experimental";
+import GenericEntityList from "./pages/GenericEntityList";
+import GenericEntityDetail from "./pages/GenericEntityDetail";
 import CommandPalette from "./components/CommandPalette";
 import KeyboardShortcutsHelp from "./components/KeyboardShortcutsHelp";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -95,6 +97,11 @@ function AppContent({ initialPath }: { initialPath: string }) {
             <Route path="reports" element={<Reports />} />
             <Route path="tables" element={<Tables />} />
             <Route path="experimental" element={<Experimental />} />
+            <Route path="entities/:type" element={<GenericEntityList />} />
+            <Route
+              path="entities/:type/:id"
+              element={<GenericEntityDetail />}
+            />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

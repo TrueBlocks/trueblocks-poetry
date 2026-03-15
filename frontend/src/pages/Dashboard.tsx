@@ -15,21 +15,21 @@ import {
   Grid,
 } from "@mantine/core";
 import {
-  GetRandomItem,
+  GetRandomEntity,
   GetExtendedStats,
   GetNavigationHistory,
-  GetMarkedItems,
+  GetMarkedEntities,
   GetTopHubs,
-  GetAllItems,
 } from "@wailsjs/go/main/App.js";
+import { GetAllEntities } from "@wailsjs/go/services/EntityService";
 import { Sparkles, Plus } from "lucide-react";
-import { StatsCards } from "@components/Dashboard/StatsCards";
+import { StatsCards, DashboardStats } from "@components/Dashboard/StatsCards";
 import { NavigationHistory } from "@components/Dashboard/NavigationHistory";
 import { Workbench } from "@components/Dashboard/Workbench";
 import { HubsList } from "@components/Dashboard/HubsList";
 import { DefinitionRenderer } from "@components/ItemDetail/DefinitionRenderer";
-import { REFERENCE_COLOR_MAP } from "@utils/references";
 import { useUIStore } from "@stores/useUIStore";
+import { appConfig } from "@/config";
 
 // interface DashboardProps {
 //   // stats: Record<string, number> | null // Deprecated, we fetch extended stats now
@@ -42,7 +42,7 @@ export default function Dashboard() {
 
   const { data: allItems } = useQuery({
     queryKey: ["allItems"],
-    queryFn: GetAllItems,
+    queryFn: GetAllEntities,
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
@@ -52,7 +52,7 @@ export default function Dashboard() {
     isLoading: isLoadingRandom,
   } = useQuery({
     queryKey: ["randomItem"],
-    queryFn: GetRandomItem,
+    queryFn: GetRandomEntity,
     refetchOnWindowFocus: false,
   });
 
@@ -68,7 +68,7 @@ export default function Dashboard() {
 
   const { data: markedItems } = useQuery({
     queryKey: ["markedItems"],
-    queryFn: GetMarkedItems,
+    queryFn: GetMarkedEntities,
   });
 
   const { data: topHubs } = useQuery({
@@ -113,7 +113,9 @@ export default function Dashboard() {
 
       {/* Extended Stats */}
       <div style={{ marginBottom: "var(--mantine-spacing-xl)" }}>
-        <StatsCards stats={extendedStats || null} />
+        <StatsCards
+          stats={(extendedStats as unknown as DashboardStats) || null}
+        />
       </div>
 
       <Grid gutter="md">
@@ -167,24 +169,22 @@ export default function Dashboard() {
                     size="lg"
                     variant="light"
                     color={
-                      REFERENCE_COLOR_MAP[
-                        randomItem.type === "Reference"
-                          ? "word"
-                          : randomItem.type.toLowerCase()
-                      ] || "gray"
+                      appConfig.entityTypes.find(
+                        (t) => t.slug === randomItem.typeSlug,
+                      )?.color || "gray"
                     }
                   >
-                    {randomItem.type}
+                    {randomItem.typeSlug}
                   </Badge>
                   <Title order={2} style={{ fontSize: "2rem" }}>
                     <Link
-                      to={`/item/${randomItem.itemId}`}
+                      to={`/item/${randomItem.id}`}
                       style={{ color: "inherit", textDecoration: "none" }}
                     >
-                      {randomItem.word}
+                      {randomItem.primaryLabel}
                     </Link>
                   </Title>
-                  {randomItem.definition && (
+                  {randomItem.description && (
                     <div
                       style={{
                         maxWidth: "80%",
@@ -199,8 +199,8 @@ export default function Dashboard() {
                       }}
                     >
                       <DefinitionRenderer
-                        text={randomItem.definition}
-                        allItems={allItems || []}
+                        text={randomItem.description}
+                        allEntities={allItems || []}
                         stopAudio={() => {
                           if (audioRef.current) {
                             audioRef.current.pause();
@@ -208,13 +208,13 @@ export default function Dashboard() {
                           }
                         }}
                         currentAudioRef={audioRef}
-                        item={randomItem}
+                        entity={randomItem}
                       />
                     </div>
                   )}
                   <Button
                     component={Link}
-                    to={`/item/${randomItem.itemId}`}
+                    to={`/item/${randomItem.id}`}
                     variant="light"
                     mt="md"
                   >

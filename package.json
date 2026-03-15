@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "type-check": "cd frontend && yarn type-check && cd ..",
+    "type-check": "yarn --cwd frontend type-check",
     "build": "wails build -tags fts5",
     "start": "wails dev -tags fts5",
-    "test": "go test -tags fts5 ./backend/database/... && cd frontend && yarn test",
-    "lint": "golangci-lint run && cd frontend && yarn lint",
-    "freshen": "rm -rf data && mkdir data && cp $HOME/.local/share/trueblocks/poetry/poetry.db data/ && cp -r $HOME/.local/share/trueblocks/poetry/images data/ && cp -r $HOME/.local/share/trueblocks/poetry/tts-cache data/ && sqlite3 data/poetry.db 'VACUUM; PRAGMA wal_checkpoint(TRUNCATE);' && rm -f data/poetry.db-wal data/poetry.db-shm && tar -czf data.tar.gz -C data . && mkdir -p backend/seeding && mv data.tar.gz backend/seeding/"
+    "test": "go test -tags fts5 ./backend/database/... && yarn --cwd frontend test",
+    "lint": "golangci-lint run && yarn --cwd frontend lint",
+    "freshen": "rm -rf data && mkdir data && cp $HOME/.local/share/trueblocks/poetry/poetry.db data/ && cp -r $HOME/.local/share/trueblocks/poetry/images data/ && cp -r $HOME/.local/share/trueblocks/poetry/tts-cache data/ && cp $HOME/.local/share/trueblocks/poetry/app_config.json . && sqlite3 data/poetry.db 'VACUUM; PRAGMA wal_checkpoint(TRUNCATE);' && rm -f data/poetry.db-wal data/poetry.db-shm && tar -czf data.tar.gz -C data . && mkdir -p backend/seeding && mv data.tar.gz backend/seeding/"
   },
   "dependencies": {
   }

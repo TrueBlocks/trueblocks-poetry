@@ -4,22 +4,23 @@ import { PoemRenderer } from "./PoemRenderer";
 import { ReferenceLink } from "./ReferenceLink";
 import { parseReferenceTags, parseTextSegments } from "@utils/tagParser";
 import { stripPossessive } from "@utils/references";
-import { database, parser } from "@models";
+import { database } from "@models";
+import * as parser from "@/types/parser";
 
 interface DefinitionRendererProps {
   text: string;
-  allItems: database.Item[];
+  allEntities: database.Entity[];
   stopAudio: () => void;
   currentAudioRef: React.MutableRefObject<HTMLAudioElement | null>;
-  item?: database.Item;
+  entity?: database.Entity;
 }
 
 export function DefinitionRenderer({
   text,
-  allItems,
+  allEntities,
   stopAudio,
   currentAudioRef,
-  item,
+  entity,
 }: DefinitionRendererProps) {
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
@@ -39,20 +40,25 @@ export function DefinitionRenderer({
           ? stripPossessive(token.refWord!)
           : token.refWord!;
 
-      const matchedItem = allItems?.find(
-        (i) => i.word.toLowerCase() === matchWord.toLowerCase(),
+      // Normalize refType to typeSlug
+      let targetTypeSlug = token.refType?.toLowerCase();
+      if (targetTypeSlug === "word") targetTypeSlug = "reference";
+
+      const matchedEntity = allEntities?.find(
+        (i) =>
+          i.primaryLabel.toLowerCase() === matchWord.toLowerCase() &&
+          i.typeSlug === targetTypeSlug,
       );
 
-      if (matchedItem) {
+      if (matchedEntity) {
         return (
           <ReferenceLink
             key={`${keyPrefix}-ref-${idx}`}
-            matchedItem={matchedItem}
+            matchedEntity={matchedEntity}
             displayWord={token.displayWord!}
-            refType={token.refType!}
             stopAudio={stopAudio}
             currentAudioRef={currentAudioRef}
-            parentItem={item}
+            parentEntity={entity}
           />
         );
       }
@@ -89,20 +95,25 @@ export function DefinitionRenderer({
           ? stripPossessive(tag.matchWord!)
           : tag.matchWord!;
 
-      const matchedItem = allItems?.find(
-        (item) => item.word.toLowerCase() === matchWord.toLowerCase(),
+      // Normalize refType to typeSlug
+      let targetTypeSlug = tag.refType?.toLowerCase();
+      if (targetTypeSlug === "word") targetTypeSlug = "reference";
+
+      const matchedEntity = allEntities?.find(
+        (item) =>
+          item.primaryLabel.toLowerCase() === matchWord.toLowerCase() &&
+          item.typeSlug === targetTypeSlug,
       );
 
-      if (matchedItem) {
+      if (matchedEntity) {
         return (
           <ReferenceLink
             key={`${keyPrefix}-ref-${idx}`}
-            matchedItem={matchedItem}
+            matchedEntity={matchedEntity}
             displayWord={tag.displayWord!}
-            refType={tag.refType!}
             stopAudio={stopAudio}
             currentAudioRef={currentAudioRef}
-            parentItem={item}
+            parentEntity={entity}
           />
         );
       }
@@ -127,69 +138,77 @@ export function DefinitionRenderer({
   // Use backend parsed definition if available AND it matches the text being rendered
   // This prevents the definition from being used when rendering derivation or appendicies
   const shouldUseBackendParsing =
-    item?.parsedDefinition &&
-    item.parsedDefinition.length > 0 &&
-    item.definition === text;
+    entity?.attributes?.parsedDefinition &&
+    entity.attributes.parsedDefinition.length > 0 &&
+    entity.description === text;
 
-  if (shouldUseBackendParsing && item.parsedDefinition) {
+  if (shouldUseBackendParsing && entity?.attributes?.parsedDefinition) {
     return (
       <>
-        {item.parsedDefinition.map((segment, idx) => {
-          if (segment.type === "poem") {
-            return (
-              <Fragment key={`poem-segment-${idx}`}>
-                {segment.preTokens && segment.preTokens.length > 0 && (
-                  <div key={`pre-poem-${idx}`} style={{ marginBottom: "1rem" }}>
-                    {renderTokens(segment.preTokens, `pre-${idx}`)}
-                  </div>
-                )}
-                <PoemRenderer
-                  key={`poem-${idx}`}
-                  content={segment.content}
-                  renderLine={(line, lineIdx) => (
-                    <>
-                      {renderTextWithLinks(line, `poem-${idx}-line-${lineIdx}`)}
-                    </>
+        {(entity.attributes.parsedDefinition as parser.Segment[]).map(
+          (segment: parser.Segment, idx: number) => {
+            if (segment.type === "poem") {
+              return (
+                <Fragment key={`poem-segment-${idx}`}>
+                  {segment.preTokens && segment.preTokens.length > 0 && (
+                    <div
+                      key={`pre-poem-${idx}`}
+                      style={{ marginBottom: "1rem" }}
+                    >
+                      {renderTokens(segment.preTokens, `pre-${idx}`)}
+                    </div>
                   )}
-                />
-                {segment.postTokens && segment.postTokens.length > 0 && (
-                  <div key={`post-poem-${idx}`} style={{ marginTop: "1rem" }}>
-                    {renderTokens(segment.postTokens, `post-${idx}`)}
-                  </div>
-                )}
-              </Fragment>
-            );
-          }
+                  <PoemRenderer
+                    key={`poem-${idx}`}
+                    content={segment.content}
+                    renderLine={(line, lineIdx) => (
+                      <>
+                        {renderTextWithLinks(
+                          line,
+                          `poem-${idx}-line-${lineIdx}`,
+                        )}
+                      </>
+                    )}
+                  />
+                  {segment.postTokens && segment.postTokens.length > 0 && (
+                    <div key={`post-poem-${idx}`} style={{ marginTop: "1rem" }}>
+                      {renderTokens(segment.postTokens, `post-${idx}`)}
+                    </div>
+                  )}
+                </Fragment>
+              );
+            }
 
-          if (segment.type === "quote") {
+            if (segment.type === "quote") {
+              return (
+                <div
+                  key={`quote-${idx}`}
+                  style={{
+                    margin: "1rem 0",
+                    padding: "0.75rem 1rem",
+                    borderLeft: `4px solid ${isDark ? "var(--mantine-color-dark-4)" : "var(--mantine-color-gray-3)"}`,
+                    backgroundColor: isDark
+                      ? "var(--mantine-color-dark-6)"
+                      : "var(--mantine-color-gray-0)",
+                    fontStyle: "italic",
+                    color: isDark
+                      ? "var(--mantine-color-dark-1)"
+                      : "var(--mantine-color-gray-7)",
+                  }}
+                >
+                  {renderTokens(segment.tokens || [], `quote-${idx}`)}
+                </div>
+              );
+            }
+
+            // Regular text segment
             return (
-              <div
-                key={`quote-${idx}`}
-                style={{
-                  margin: "1rem 0",
-                  padding: "0.75rem 1rem",
-                  borderLeft: `4px solid ${isDark ? "var(--mantine-color-dark-4)" : "var(--mantine-color-gray-3)"}`,
-                  backgroundColor: isDark
-                    ? "var(--mantine-color-dark-6)"
-                    : "var(--mantine-color-gray-0)",
-                  fontStyle: "italic",
-                  color: isDark
-                    ? "var(--mantine-color-dark-1)"
-                    : "var(--mantine-color-gray-7)",
-                }}
-              >
-                {renderTokens(segment.tokens || [], `quote-${idx}`)}
-              </div>
+              <span key={`text-${idx}`}>
+                {renderTokens(segment.tokens || [], `text-${idx}`)}
+              </span>
             );
-          }
-
-          // Regular text segment
-          return (
-            <span key={`text-${idx}`}>
-              {renderTokens(segment.tokens || [], `text-${idx}`)}
-            </span>
-          );
-        })}
+          },
+        )}
       </>
     );
   }
@@ -197,7 +216,7 @@ export function DefinitionRenderer({
   // Fallback to legacy frontend parsing
   // Check if this is a Poem (Title type + exactly one pair of brackets)
   const isPoem =
-    item?.type === "Title" &&
+    entity?.typeSlug === "title" &&
     (text.match(/\[/g) || []).length === 1 &&
     (text.match(/\]/g) || []).length === 1;
 
@@ -236,7 +255,7 @@ export function DefinitionRenderer({
         if (segment.type === "quote") {
           // Check if this is a poem quote (only one quote in a Title item)
           const isPoemQuote =
-            item?.type === "Title" &&
+            entity?.typeSlug === "title" &&
             segments.filter((s) => s.type === "quote").length === 1;
 
           if (isPoemQuote) {

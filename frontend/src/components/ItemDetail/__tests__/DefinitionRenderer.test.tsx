@@ -141,7 +141,7 @@ describe("DefinitionRenderer", () => {
   test("renders poem with line numbers for long poems", () => {
     const longPoemContent = Array(15).fill("Line of poem").join("\n");
     const text = `[\n${longPoemContent}\n]`;
-    const item = { type: "Title", word: "My Poem" };
+    const item = { typeSlug: "title", word: "My Poem" };
 
     const { container } = renderWithRouter(
       <DefinitionRenderer
@@ -149,7 +149,7 @@ describe("DefinitionRenderer", () => {
         allItems={mockItems}
         stopAudio={mockStopAudio}
         currentAudioRef={mockAudioRef}
-        item={item}
+        entity={item as any}
       />,
     );
 

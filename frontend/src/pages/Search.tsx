@@ -23,20 +23,22 @@ import {
   useMantineColorScheme,
 } from "@mantine/core";
 import {
-  SearchItems,
-  SearchItemsWithOptions,
-  AddRecentSearch,
-  RemoveRecentSearch,
+  RunAdHocQuery,
+  GetEntityImage,
   GetRecentSearches,
   GetSavedSearches,
-  GetItemLinks,
-  GetItem,
+  AddRecentSearch,
   SaveSearch,
   DeleteSavedSearch,
-  GetAllItems,
-  RunAdHocQuery,
-  GetItemImage,
+  RemoveRecentSearch,
 } from "@wailsjs/go/main/App.js";
+import {
+  SearchEntities,
+  SearchEntitiesWithOptions,
+  GetRelationships,
+  GetEntity,
+  GetAllEntities,
+} from "@wailsjs/go/services/EntityService";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
 import { Search as SearchIcon, Save, Trash2 } from "lucide-react";
 import { notifications } from "@mantine/notifications";
@@ -51,9 +53,9 @@ interface SavedSearch {
   source?: string;
 }
 
-// Helper to get first sentence from definition
+// Helper to get first sentence from description
 const getFirstSentence = (text: string | null | undefined): string => {
-  if (!text) return "No definition";
+  if (!text) return "No description";
   const match = text.match(/^[^.!?]+[.!?]/);
   return match
     ? match[0] + "..."
@@ -62,12 +64,12 @@ const getFirstSentence = (text: string | null | undefined): string => {
       : text;
 };
 
-const SearchResultImage = ({ itemId }: { itemId: number }) => {
+const SearchResultImage = ({ id }: { id: number }) => {
   const [image, setImage] = useState<string | null>(null);
 
   useEffect(() => {
-    GetItemImage(itemId).then(setImage);
-  }, [itemId]);
+    GetEntityImage(id).then(setImage);
+  }, [id]);
 
   if (!image) return null;
 
@@ -104,7 +106,7 @@ export default function Search() {
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [searchName, setSearchName] = useState("");
   const [showAllResults, setShowAllResults] = useState(false);
-  const [allItems, setAllItems] = useState<database.Item[]>([]);
+  const [allItems, setAllItems] = useState<database.Entity[]>([]);
   const navigate = useNavigate();
   const resultRefs = useRef<(HTMLElement | null)[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -144,7 +146,7 @@ export default function Search() {
     GetSavedSearches().then((searches) => {
       setSavedSearches(searches || []);
     });
-    GetAllItems().then((items) => {
+    GetAllEntities().then((items) => {
       setAllItems(items || []);
     });
   }, []);
@@ -166,7 +168,7 @@ export default function Search() {
     data: results,
     isLoading,
     error,
-  } = useQuery<database.Item[] | Record<string, unknown>[]>({
+  } = useQuery<database.Entity[] | Record<string, unknown>[]>({
     queryKey: [
       "search",
       debouncedQuery,
@@ -181,7 +183,7 @@ export default function Search() {
       if (isSqlSearch) {
         return RunAdHocQuery(debouncedQuery);
       }
-      // Use SearchItemsWithOptions if any filters are active or query is empty (wildcard)
+      // Use SearchEntitiesWithOptions if any filters are active or query is empty (wildcard)
       const hasFilters =
         selectedTypes.length > 0 ||
         selectedSource ||
@@ -189,18 +191,13 @@ export default function Search() {
         hasImage ||
         hasTts;
       if (hasFilters || debouncedQuery === "") {
-        const options: database.SearchOptions = {
-          query: debouncedQuery,
-          types: selectedTypes,
-          source: selectedSource,
-          useRegex: useRegex,
-          caseSensitive: false,
-          hasImage: hasImage,
-          hasTts: hasTts,
-        };
-        return SearchItemsWithOptions(options);
+        return SearchEntitiesWithOptions(
+          debouncedQuery,
+          selectedTypes,
+          selectedSource,
+        );
       }
-      return SearchItems(debouncedQuery);
+      return SearchEntities(debouncedQuery, "");
     },
     enabled:
       debouncedQuery.length > 0 ||
@@ -211,12 +208,12 @@ export default function Search() {
     staleTime: 30000, // Cache results for 30 seconds
   });
 
-  const { exactMatches, wordMatches, otherResults, allResults } =
+  const { exactMatches, primaryLabelMatches, otherResults, allResults } =
     useMemo(() => {
       if (!results || results.length === 0) {
         return {
           exactMatches: [],
-          wordMatches: [],
+          primaryLabelMatches: [],
           otherResults: [],
           allResults: [],
         };
@@ -225,7 +222,7 @@ export default function Search() {
       if (isSqlSearch) {
         return {
           exactMatches: [],
-          wordMatches: [],
+          primaryLabelMatches: [],
           otherResults: results,
           allResults: results,
           totalCount: results.length,
@@ -235,27 +232,27 @@ export default function Search() {
 
       const normalizedQuery = debouncedQuery.trim().toLowerCase();
 
-      const exact: database.Item[] = [];
-      const words: database.Item[] = [];
-      const other: database.Item[] = [];
+      const exact: database.Entity[] = [];
+      const primaryLabels: database.Entity[] = [];
+      const other: database.Entity[] = [];
 
-      (results as database.Item[]).forEach((item) => {
-        const itemWord = item.word.trim().toLowerCase();
+      (results as database.Entity[]).forEach((item) => {
+        const itemWord = item.primaryLabel.trim().toLowerCase();
 
         if (itemWord === normalizedQuery) {
           exact.push(item);
         } else {
-          // Check if query matches a complete word within the item's word
+          // Check if query matches a complete primaryLabel within the item's primaryLabel
           const itemWords = itemWord.split(/\s+/);
           if (itemWords.includes(normalizedQuery)) {
-            words.push(item);
+            primaryLabels.push(item);
           } else {
             other.push(item);
           }
         }
       });
 
-      const all = [...exact, ...words, ...other];
+      const all = [...exact, ...primaryLabels, ...other];
 
       // Limit results to 50 unless "Show All" is enabled
       const RESULT_LIMIT = 50;
@@ -264,7 +261,7 @@ export default function Search() {
 
       return {
         exactMatches: exact,
-        wordMatches: words,
+        primaryLabelMatches: primaryLabels,
         otherResults: other,
         allResults: limitedAll,
         totalCount: all.length,
@@ -274,17 +271,17 @@ export default function Search() {
 
   // Fetch links for all result items to get writer names
   const linkQueries = useQueries({
-    queries: ((results || []) as database.Item[]).map((item) => ({
-      queryKey: ["searchItemLinks", item.itemId],
+    queries: ((results || []) as database.Entity[]).map((item) => ({
+      queryKey: ["searchItemLinks", item.id],
       queryFn: async () => {
-        const links = await GetItemLinks(item.itemId);
-        const outgoingLinks = links.filter(
-          (link) => link.sourceItemId === item.itemId,
-        );
+        const links = await GetRelationships(item.id);
+        const outgoingLinks = links.filter((link) => link.sourceId === item.id);
         const writerItems = await Promise.all(
           outgoingLinks.map(async (link) => {
-            const linkedItem = await GetItem(link.destinationItemId);
-            return linkedItem?.type === "Writer" ? linkedItem.word : null;
+            const linkedItem = await GetEntity(link.targetId);
+            return linkedItem?.typeSlug === "writer"
+              ? linkedItem.primaryLabel
+              : null;
           }),
         );
         return writerItems.filter(Boolean);
@@ -296,11 +293,14 @@ export default function Search() {
   // Map item IDs to their writer names
   const itemWriters = useMemo(() => {
     const map: Record<number, string[]> = {};
-    (results as database.Item[] | undefined)?.forEach((item, index: number) => {
-      const writers =
-        linkQueries[index]?.data?.filter((w): w is string => w !== null) || [];
-      map[item.itemId] = writers;
-    });
+    (results as database.Entity[] | undefined)?.forEach(
+      (item, index: number) => {
+        const writers =
+          linkQueries[index]?.data?.filter((w): w is string => w !== null) ||
+          [];
+        map[item.id] = writers;
+      },
+    );
     return map;
   }, [results, linkQueries]);
 
@@ -417,7 +417,7 @@ export default function Search() {
         e.preventDefault();
         const selectedItem = allResults[selectedIndex];
         if (selectedItem) {
-          navigate(`/item/${selectedItem.itemId}?tab=detail`);
+          navigate(`/item/${selectedItem.id}?tab=detail`);
         }
       }
     };
@@ -518,7 +518,7 @@ export default function Search() {
                       }
                     }}
                     onBlur={() => combobox.closeDropdown()}
-                    placeholder="Search words, definitions, derivations..."
+                    placeholder="Search primaryLabels, descriptions, derivations..."
                     size="lg"
                     autoFocus
                   />
@@ -668,8 +668,8 @@ export default function Search() {
           </Group>
 
           <Text size="sm" c="dimmed">
-            Full-text search across words, definitions, and derivations.
-            Supports AND, OR, NOT, and parentheses.
+            Full-text search across primaryLabels, descriptions, and
+            derivations. Supports AND, OR, NOT, and parentheses.
           </Text>
         </Stack>
       </form>
@@ -720,11 +720,11 @@ export default function Search() {
               {(results as Record<string, unknown>[]).map(
                 (row, index: number) => {
                   const item = { ...row } as Record<string, unknown> &
-                    Partial<database.Item>;
-                  if ("item_id" in item && item.item_id && !item.itemId) {
-                    item.itemId = item.item_id as number;
+                    Partial<database.Entity>;
+                  if ("item_id" in item && item.item_id && !item.id) {
+                    item.id = item.item_id as number;
                   }
-                  const isItem = item.itemId && item.word;
+                  const isItem = item.id && item.primaryLabel;
 
                   return (
                     <Paper
@@ -738,28 +738,30 @@ export default function Search() {
                         <Stack gap="xs">
                           <Group justify="space-between" align="flex-start">
                             <Group align="flex-start" wrap="nowrap">
-                              {item.type === "Writer" && item.itemId && (
-                                <SearchResultImage itemId={item.itemId} />
+                              {item.typeSlug === "writer" && item.id && (
+                                <SearchResultImage id={item.id} />
                               )}
                               <Link
-                                to={`/item/${item.itemId ?? 0}?tab=detail`}
+                                to={`/item/${item.id ?? 0}?tab=detail`}
                                 style={{
                                   textDecoration: "none",
                                   color: "inherit",
                                 }}
                               >
-                                <Title order={3}>{item.word}</Title>
+                                <Title order={3}>{item.primaryLabel}</Title>
                               </Link>
                             </Group>
-                            {item.type && <Badge>{item.type}</Badge>}
+                            {item.typeSlug && <Badge>{item.typeSlug}</Badge>}
                           </Group>
-                          {item.definition && (
+                          {item.description && (
                             <DefinitionRenderer
-                              text={getFirstSentence(item.definition as string)}
-                              allItems={allItems}
+                              text={getFirstSentence(
+                                item.description as string,
+                              )}
+                              allEntities={allItems}
                               stopAudio={() => {}}
                               currentAudioRef={audioRef}
-                              item={item as database.Item}
+                              entity={item as database.Entity}
                             />
                           )}
                         </Stack>
@@ -776,7 +778,7 @@ export default function Search() {
                               </Text>
                               <Text
                                 size="sm"
-                                style={{ wordBreak: "break-all" }}
+                                style={{ primaryLabelBreak: "break-all" }}
                               >
                                 {String(v)}
                               </Text>
@@ -798,12 +800,12 @@ export default function Search() {
                     const isSelected = selectedIndex === globalIndex;
                     return (
                       <Paper
-                        key={item.itemId}
+                        key={item.id}
                         ref={(el: HTMLElement | null) => {
                           resultRefs.current[globalIndex] = el;
                         }}
                         component={Link}
-                        to={`/item/${item.itemId}?tab=detail`}
+                        to={`/item/${item.id}?tab=detail`}
                         shadow="sm"
                         p="md"
                         radius="md"
@@ -826,8 +828,8 @@ export default function Search() {
                       >
                         <Stack gap="xs">
                           <Group align="flex-start" wrap="nowrap">
-                            {item.type === "Writer" && (
-                              <SearchResultImage itemId={item.itemId} />
+                            {item.typeSlug === "writer" && (
+                              <SearchResultImage id={item.id} />
                             )}
                             <Title
                               order={3}
@@ -837,33 +839,33 @@ export default function Search() {
                                   : "var(--mantine-color-blue-7)"
                               }
                             >
-                              {item.word}
+                              {item.primaryLabel}
                             </Title>
                           </Group>
                           <div>
-                            {item.definition ? (
+                            {item.description ? (
                               <DefinitionRenderer
-                                text={getFirstSentence(item.definition)}
-                                allItems={allItems}
+                                text={getFirstSentence(item.description)}
+                                allEntities={allItems}
                                 stopAudio={() => {}}
                                 currentAudioRef={audioRef}
-                                item={item}
+                                entity={item}
                               />
                             ) : (
-                              <Text component="span">No definition</Text>
+                              <Text component="span">No description</Text>
                             )}
-                            {itemWriters[item.itemId]?.length > 0 && (
+                            {itemWriters[item.id]?.length > 0 && (
                               <Text component="span" size="sm" c="dimmed">
                                 {" "}
-                                Writers: {itemWriters[item.itemId].join(", ")}
+                                Writers: {itemWriters[item.id].join(", ")}
                               </Text>
                             )}
                           </div>
                           <Group>
-                            <Badge>{item.type}</Badge>
-                            {item.source && (
+                            <Badge>{item.typeSlug}</Badge>
+                            {item.attributes?.source && (
                               <Text size="xs" c="dimmed">
-                                Source: {item.source}
+                                Source: {item.attributes.source}
                               </Text>
                             )}
                           </Group>
@@ -872,7 +874,8 @@ export default function Search() {
                     );
                   })}
 
-                  {(wordMatches.length > 0 || otherResults.length > 0) && (
+                  {(primaryLabelMatches.length > 0 ||
+                    otherResults.length > 0) && (
                     <Divider
                       my="md"
                       label="Word Matches"
@@ -882,17 +885,17 @@ export default function Search() {
                 </>
               )}
 
-              {wordMatches.map((item, index: number) => {
+              {primaryLabelMatches.map((item, index: number) => {
                 const globalIndex = exactMatches.length + index;
                 const isSelected = selectedIndex === globalIndex;
                 return (
                   <Paper
-                    key={item.itemId}
+                    key={item.id}
                     ref={(el: HTMLElement | null) => {
                       resultRefs.current[globalIndex] = el;
                     }}
                     component={Link}
-                    to={`/item/${item.itemId}?tab=detail`}
+                    to={`/item/${item.id}?tab=detail`}
                     shadow="sm"
                     p="md"
                     radius="md"
@@ -915,8 +918,8 @@ export default function Search() {
                   >
                     <Stack gap="xs">
                       <Group align="flex-start" wrap="nowrap">
-                        {item.type === "Writer" && (
-                          <SearchResultImage itemId={item.itemId} />
+                        {item.typeSlug === "writer" && (
+                          <SearchResultImage id={item.id} />
                         )}
                         <Title
                           order={3}
@@ -926,33 +929,33 @@ export default function Search() {
                               : "var(--mantine-color-blue-7)"
                           }
                         >
-                          {item.word}
+                          {item.primaryLabel}
                         </Title>
                       </Group>
                       <div>
-                        {item.definition ? (
+                        {item.description ? (
                           <DefinitionRenderer
-                            text={getFirstSentence(item.definition)}
-                            allItems={allItems}
+                            text={getFirstSentence(item.description)}
+                            allEntities={allItems}
                             stopAudio={() => {}}
                             currentAudioRef={audioRef}
-                            item={item}
+                            entity={item}
                           />
                         ) : (
-                          <Text component="span">No definition</Text>
+                          <Text component="span">No description</Text>
                         )}
-                        {itemWriters[item.itemId]?.length > 0 && (
+                        {itemWriters[item.id]?.length > 0 && (
                           <Text component="span" size="sm" c="dimmed">
                             {" "}
-                            Writers: {itemWriters[item.itemId].join(", ")}
+                            Writers: {itemWriters[item.id].join(", ")}
                           </Text>
                         )}
                       </div>
                       <Group>
-                        <Badge>{item.type}</Badge>
-                        {item.source && (
+                        <Badge>{item.typeSlug}</Badge>
+                        {item.attributes?.source && (
                           <Text size="xs" c="dimmed">
-                            Source: {item.source}
+                            Source: {item.attributes.source}
                           </Text>
                         )}
                       </Group>
@@ -961,23 +964,23 @@ export default function Search() {
                 );
               })}
 
-              {wordMatches.length > 0 && otherResults.length > 0 && (
+              {primaryLabelMatches.length > 0 && otherResults.length > 0 && (
                 <Divider my="md" label="Other Results" labelPosition="center" />
               )}
 
               {otherResults.map((item, index: number) => {
                 const globalIndex =
-                  exactMatches.length + wordMatches.length + index;
+                  exactMatches.length + primaryLabelMatches.length + index;
                 const isSelected = selectedIndex === globalIndex;
-                const itemId = item.itemId as number;
+                const id = item.id as number;
                 return (
                   <Paper
-                    key={itemId}
+                    key={id}
                     ref={(el: HTMLElement | null) => {
                       resultRefs.current[globalIndex] = el;
                     }}
                     component={Link}
-                    to={`/item/${itemId}?tab=detail`}
+                    to={`/item/${id}?tab=detail`}
                     shadow="sm"
                     p="md"
                     radius="md"
@@ -1000,8 +1003,8 @@ export default function Search() {
                   >
                     <Stack gap="xs">
                       <Group align="flex-start" wrap="nowrap">
-                        {item.type === "Writer" && (
-                          <SearchResultImage itemId={itemId} />
+                        {item.typeSlug === "writer" && (
+                          <SearchResultImage id={id} />
                         )}
                         <Title
                           order={3}
@@ -1011,34 +1014,40 @@ export default function Search() {
                               : "var(--mantine-color-blue-7)"
                           }
                         >
-                          {item.word as React.ReactNode}
+                          {item.primaryLabel as React.ReactNode}
                         </Title>
                       </Group>
                       <div>
-                        {item.definition ? (
+                        {item.description ? (
                           <DefinitionRenderer
-                            text={getFirstSentence(item.definition as string)}
-                            allItems={allItems}
+                            text={getFirstSentence(item.description as string)}
+                            allEntities={allItems}
                             stopAudio={() => {}}
                             currentAudioRef={audioRef}
-                            item={item as database.Item}
+                            entity={item as database.Entity}
                           />
                         ) : (
-                          <Text component="span">No definition</Text>
+                          <Text component="span">No description</Text>
                         )}
-                        {itemWriters[itemId] &&
-                          itemWriters[itemId].length > 0 && (
-                            <Text component="span" size="sm" c="dimmed">
-                              {" "}
-                              Writers: {itemWriters[itemId].join(", ")}
-                            </Text>
-                          )}
+                        {itemWriters[id] && itemWriters[id].length > 0 && (
+                          <Text component="span" size="sm" c="dimmed">
+                            {" "}
+                            Writers: {itemWriters[id].join(", ")}
+                          </Text>
+                        )}
                       </div>
                       <Group>
-                        {item.type ? <Badge>{String(item.type)}</Badge> : null}
-                        {item.source ? (
+                        {item.typeSlug ? (
+                          <Badge>{String(item.typeSlug)}</Badge>
+                        ) : null}
+                        {(item.attributes as Record<string, unknown>)
+                          ?.source ? (
                           <Text size="xs" c="dimmed">
-                            Source: {String(item.source)}
+                            Source:{" "}
+                            {String(
+                              (item.attributes as Record<string, unknown>)
+                                .source,
+                            )}
                           </Text>
                         ) : null}
                       </Group>
@@ -1057,11 +1066,11 @@ export default function Search() {
           <Stack align="center" gap="xs">
             <Text size="sm" c="dimmed">
               Showing {allResults.length} of{" "}
-              {(results as database.Item[])?.length || allResults.length}{" "}
+              {(results as database.Entity[])?.length || allResults.length}{" "}
               results
             </Text>
             {allResults.length <
-              ((results as database.Item[])?.length || 0) && (
+              ((results as database.Entity[])?.length || 0) && (
               <Button variant="light" onClick={() => setShowAllResults(true)}>
                 Show All Results
               </Button>

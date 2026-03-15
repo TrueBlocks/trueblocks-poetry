@@ -25,6 +25,7 @@ import useDarkMode from "@hooks/useDarkMode";
 import Footer from "./Footer";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
 import { useUIStore } from "@stores/useUIStore";
+import { appConfig } from "@/config";
 
 interface LayoutProps {
   stats?: Record<string, number> | null;
@@ -132,18 +133,44 @@ export default function Layout({ stats }: LayoutProps) {
             />
             <NavLink
               component={Link}
+              to="/settings"
+              label={showLabels ? "Settings" : undefined}
+              leftSection={<SettingsIcon size={20} />}
+              active={location.pathname === "/settings"}
+            />
+
+            <Divider
+              my="xs"
+              label={showLabels ? "Entities" : undefined}
+              labelPosition="center"
+            />
+            {appConfig.entityTypes
+              .filter(
+                (type) =>
+                  !["person", "character", "cliche", "term"].includes(
+                    type.slug,
+                  ),
+              )
+              .map((type) => (
+                <NavLink
+                  key={type.slug}
+                  component={Link}
+                  to={`/entities/${type.slug}`}
+                  label={showLabels ? type.displayName : undefined}
+                  leftSection={<Table2 size={20} />}
+                  active={location.pathname.startsWith(
+                    `/entities/${type.slug}`,
+                  )}
+                />
+              ))}
+
+            <NavLink
+              component={Link}
               to="/experimental"
               label={showLabels ? "Experimental" : undefined}
               leftSection={<Beaker size={20} />}
               active={location.pathname === "/experimental"}
               onClick={() => LogInfo("[Layout] Experimental link clicked")}
-            />
-            <NavLink
-              component={Link}
-              to="/settings"
-              label={showLabels ? "Settings" : undefined}
-              leftSection={<SettingsIcon size={20} />}
-              active={location.pathname === "/settings"}
             />
           </Stack>
         </AppShell.Section>

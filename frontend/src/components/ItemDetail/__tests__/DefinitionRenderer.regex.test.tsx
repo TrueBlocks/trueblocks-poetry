@@ -44,28 +44,34 @@ describe("DefinitionRenderer regex matching", () => {
     expect(matches[2][1]).toBe("word");
   });
 
-  test("regex does NOT match old format {w:} tag", () => {
+  test("regex matches generic format {w:} tag", () => {
     const regex = new RegExp(Patterns.ReferenceTag, "gi");
     const text = "A type of {w: acrostic}";
     const matches = Array.from(text.matchAll(regex));
 
-    expect(matches.length).toBe(0);
+    expect(matches.length).toBe(1);
+    expect(matches[0][1]).toBe("w");
+    expect(matches[0][2]).toBe("acrostic");
   });
 
-  test("regex does NOT match old format {p:} tag", () => {
+  test("regex matches generic format {p:} tag", () => {
     const regex = new RegExp(Patterns.ReferenceTag, "gi");
     const text = "By {p: Shakespeare}";
     const matches = Array.from(text.matchAll(regex));
 
-    expect(matches.length).toBe(0);
+    expect(matches.length).toBe(1);
+    expect(matches[0][1]).toBe("p");
+    expect(matches[0][2]).toBe("Shakespeare");
   });
 
-  test("regex does NOT match old format {t:} tag", () => {
+  test("regex matches generic format {t:} tag", () => {
     const regex = new RegExp(Patterns.ReferenceTag, "gi");
     const text = "In {t: Hamlet}";
     const matches = Array.from(text.matchAll(regex));
 
-    expect(matches.length).toBe(0);
+    expect(matches.length).toBe(1);
+    expect(matches[0][1]).toBe("t");
+    expect(matches[0][2]).toBe("Hamlet");
   });
 
   test("regex matches with extra whitespace", () => {

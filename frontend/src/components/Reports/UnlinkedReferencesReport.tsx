@@ -11,18 +11,17 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useState } from "react";
+import { GetUnlinkedReferences } from "@wailsjs/go/main/App";
 import {
-  GetUnlinkedReferences,
-  CreateLink,
-  GetItem,
-  UpdateItem,
-  DeleteLinkByItems,
-} from "@wailsjs/go/main/App";
+  CreateRelationship,
+  GetEntity,
+  UpdateEntity,
+} from "@wailsjs/go/services/EntityService";
 import { database } from "@wailsjs/go/models";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
 import { AlertTriangle } from "lucide-react";
 import { UnlinkedRefResult } from "./types";
-import { lookupItemByRef } from "./utils";
+import { lookupEntityByRef } from "./utils";
 import { Patterns } from "@utils/constants";
 import { LogError } from "@utils/logger";
 
@@ -39,17 +38,20 @@ export function UnlinkedReferencesReport() {
     },
   });
 
-  const handleCreateLink = async (sourceItemId: number, refWord: string) => {
-    const key = `${sourceItemId}-${refWord}`;
+  const handleCreateRelationship = async (
+    sourceId: number,
+    refWord: string,
+  ) => {
+    const key = `${sourceId}-${refWord}`;
     setCreatingLink(key);
     try {
-      const destItem = await lookupItemByRef(refWord);
-      if (!destItem) {
+      const destEntity = await lookupEntityByRef(refWord);
+      if (!destEntity) {
         LogError(`Could not find item: ${refWord}`);
         return;
       }
 
-      await CreateLink(sourceItemId, destItem.itemId, "reference");
+      await CreateRelationship(sourceId, destEntity.id, "reference");
       queryClient.invalidateQueries({ queryKey: ["unlinkedReferences"] });
     } catch (error) {
       LogError(`Failed to create link: ${error}`);
@@ -58,44 +60,22 @@ export function UnlinkedReferencesReport() {
     }
   };
 
-  const handleRemoveTag = async (itemId: number, refWord: string) => {
-    const key = `${itemId}-${refWord}`;
+  const handleRemoveTag = async (id: number, refWord: string) => {
+    const key = `${id}-${refWord}`;
     setRemovingTag(key);
     LogInfo(
-      `[UnlinkedReferencesReport] Removing tag for: itemId=${itemId}, refWord=${refWord}`,
+      `[UnlinkedReferencesReport] Removing tag for: id=${id}, refWord=${refWord}`,
     );
     try {
-      const item = await GetItem(itemId);
-      if (!item || !item.definition) {
+      const item = await GetEntity(id);
+      if (!item || !item.description) {
         LogInfo("[UnlinkedReferencesReport] Item or definition not found");
         return;
       }
 
-      // Try to find the destination item to remove any links
-      try {
-        const destItem = await lookupItemByRef(refWord);
-        if (destItem) {
-          LogInfo(
-            `[UnlinkedReferencesReport] Found destination item: ${destItem.itemId}, removing link`,
-          );
-          try {
-            await DeleteLinkByItems(itemId, destItem.itemId);
-            LogInfo("[UnlinkedReferencesReport] Link deleted successfully");
-          } catch (error) {
-            LogInfo(
-              `[UnlinkedReferencesReport] No link to delete or deletion failed: ${error}`,
-            );
-          }
-        }
-      } catch {
-        LogInfo(
-          `[UnlinkedReferencesReport] Destination item not found (expected for missing items): ${refWord}`,
-        );
-      }
-
       // Remove all reference tags that match this word (case-insensitive)
       // Tags are in format: {word:text}, {writer:text}, {title:text}
-      const updatedDefinition = item.definition.replace(
+      const updatedDefinition = item.description.replace(
         Patterns.ReferenceTag,
         (match, _type, content) => {
           if (content.trim() === refWord) {
@@ -106,17 +86,17 @@ export function UnlinkedReferencesReport() {
       );
 
       LogInfo(
-        `[UnlinkedReferencesReport] Original definition length: ${item.definition.length}`,
+        `[UnlinkedReferencesReport] Original definition length: ${item.description.length}`,
       );
       LogInfo(
         `[UnlinkedReferencesReport] Updated definition length: ${updatedDefinition.length}`,
       );
 
-      const updatedItem = new database.Item({
+      const updatedItem = new database.Entity({
         ...item,
-        definition: updatedDefinition,
+        description: updatedDefinition,
       });
-      await UpdateItem(updatedItem);
+      await UpdateEntity(updatedItem);
 
       LogInfo("[UnlinkedReferencesReport] Item updated successfully");
       queryClient.invalidateQueries({ queryKey: ["unlinkedReferences"] });
@@ -180,18 +160,18 @@ export function UnlinkedReferencesReport() {
             </Table.Thead>
             <Table.Tbody>
               {unlinkedRefs.map((item) => (
-                <Table.Tr key={item.itemId}>
+                <Table.Tr key={item.id}>
                   <Table.Td>
                     <Anchor
                       component={Link}
-                      to={`/item/${item.itemId}?tab=detail`}
+                      to={`/item/${item.id}?tab=detail`}
                       fw={600}
                     >
-                      {item.word}
+                      {item.primaryLabel}
                     </Anchor>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm">{item.type}</Badge>
+                    <Badge size="sm">{item.typeSlug}</Badge>
                   </Table.Td>
                   <Table.Td>
                     <div
@@ -209,7 +189,7 @@ export function UnlinkedReferencesReport() {
                       style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}
                     >
                       {item.unlinkedRefs.map((detail, idx) => {
-                        const key = `${item.itemId}-${detail.ref}`;
+                        const key = `${item.id}-${detail.ref}`;
                         const isCreating = creatingLink === key;
                         const isRemoving = removingTag === key;
                         const isUnlinked = detail.reason === "unlinked";
@@ -238,9 +218,9 @@ export function UnlinkedReferencesReport() {
                               onClick={() => {
                                 if (isProcessing) return;
                                 if (isMissing) {
-                                  handleRemoveTag(item.itemId, detail.ref);
+                                  handleRemoveTag(item.id, detail.ref);
                                 } else if (isUnlinked) {
-                                  handleCreateLink(item.itemId, detail.ref);
+                                  handleCreateRelationship(item.id, detail.ref);
                                 }
                               }}
                             >

@@ -1,27 +1,27 @@
-import { getItemColor } from "../colors";
+import { getEntityColor } from "../colors";
 
-describe("getItemColor", () => {
+describe("getEntityColor", () => {
   test("Reference items are light blue", () => {
-    expect(getItemColor("Reference")).toBe("#ADD8E6");
+    expect(getEntityColor("Reference")).toBe("#ADD8E6");
   });
 
   test("Writer items are light green", () => {
-    expect(getItemColor("Writer")).toBe("#90EE90");
+    expect(getEntityColor("Writer")).toBe("#90EE90");
   });
 
   test("Title items are light pink", () => {
-    expect(getItemColor("Title")).toBe("#FFB6D9");
+    expect(getEntityColor("Title")).toBe("#FFB6D9");
   });
 
   test("unknown types use default gray", () => {
-    expect(getItemColor("Unknown")).toBe("#E5E7EB");
+    expect(getEntityColor("Unknown")).toBe("#E5E7EB");
   });
 
   test("custom default color", () => {
-    expect(getItemColor("Unknown", "#FF0000")).toBe("#FF0000");
+    expect(getEntityColor("Unknown", "#FF0000")).toBe("#FF0000");
   });
 
-  test("case sensitive - lowercase reference uses default", () => {
-    expect(getItemColor("reference")).toBe("#E5E7EB");
+  test("case insensitive - lowercase reference works", () => {
+    expect(getEntityColor("reference")).toBe("#ADD8E6");
   });
 });

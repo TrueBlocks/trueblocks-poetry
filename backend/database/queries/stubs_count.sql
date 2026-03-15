@@ -1,4 +1,1 @@
-SELECT COUNT(*)
-FROM items
-WHERE definition IS NULL
-   OR definition = ''
+SELECT COUNT(*) FROM entities WHERE description IS NULL OR description = ''

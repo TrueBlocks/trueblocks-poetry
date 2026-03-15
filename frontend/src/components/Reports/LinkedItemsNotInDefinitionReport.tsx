@@ -11,15 +11,12 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useState } from "react";
-import {
-  GetLinkedItemsNotInDefinition,
-  DeleteLinkByItems,
-} from "@wailsjs/go/main/App";
+import { GetLinkedEntitiesNotInDescription } from "@wailsjs/go/main/App";
+import { DeleteRelationship } from "@wailsjs/go/services/EntityService";
 import { AlertTriangle } from "lucide-react";
 import { notifications } from "@mantine/notifications";
 import { LinkedNotInDefResult } from "./types";
 import { LogError } from "@utils/logger";
-import { lookupItemByRef } from "./utils";
 
 export function LinkedItemsNotInDefinitionReport() {
   const queryClient = useQueryClient();
@@ -28,30 +25,20 @@ export function LinkedItemsNotInDefinitionReport() {
   const { data: linkedNotInDef, isLoading } = useQuery({
     queryKey: ["linkedNotInDef"],
     queryFn: async () => {
-      const results = await GetLinkedItemsNotInDefinition();
+      const results = await GetLinkedEntitiesNotInDescription();
       return results as LinkedNotInDefResult[];
     },
   });
 
-  const handleDeleteLink = async (sourceItemId: number, refWord: string) => {
-    setDeletingLink(`${sourceItemId}-${refWord}`);
+  const handleDeleteLink = async (relationshipId: number, label: string) => {
+    setDeletingLink(String(relationshipId));
     try {
-      const destItem = await lookupItemByRef(refWord);
-      if (!destItem) {
-        notifications.show({
-          title: "Item not found",
-          message: `Could not find item: ${refWord}`,
-          color: "red",
-        });
-        return;
-      }
-
-      await DeleteLinkByItems(sourceItemId, destItem.itemId);
+      await DeleteRelationship(relationshipId);
       queryClient.invalidateQueries({ queryKey: ["linkedNotInDef"] });
 
       notifications.show({
         title: "Link deleted",
-        message: `Removed link to ${destItem.word}`,
+        message: `Removed link to ${label}`,
         color: "green",
       });
     } catch (error) {
@@ -113,18 +100,18 @@ export function LinkedItemsNotInDefinitionReport() {
             </Table.Thead>
             <Table.Tbody>
               {linkedNotInDef.map((item) => (
-                <Table.Tr key={item.itemId}>
+                <Table.Tr key={item.id}>
                   <Table.Td>
                     <Anchor
                       component={Link}
-                      to={`/item/${item.itemId}?tab=detail`}
+                      to={`/item/${item.id}?tab=detail`}
                       fw={600}
                     >
-                      {item.word}
+                      {item.primaryLabel}
                     </Anchor>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm">{item.type}</Badge>
+                    <Badge size="sm">{item.typeSlug}</Badge>
                   </Table.Td>
                   <Table.Td>
                     <div
@@ -136,11 +123,13 @@ export function LinkedItemsNotInDefinitionReport() {
                           size="xs"
                           color="orange"
                           variant="light"
-                          loading={deletingLink === `${item.itemId}-${ref}`}
-                          onClick={() => handleDeleteLink(item.itemId, ref)}
+                          loading={deletingLink === String(ref.relationshipId)}
+                          onClick={() =>
+                            handleDeleteLink(ref.relationshipId, ref.label)
+                          }
                           title="Click to remove link"
                         >
-                          {ref}
+                          {ref.label}
                         </Button>
                       ))}
                     </div>

@@ -23,13 +23,13 @@ func NewImageService(db *database.DB) *ImageService {
 	}
 }
 
-// GetItemImage retrieves an image for an item from the cache
-func (s *ImageService) GetItemImage(itemId int) (string, error) {
+// GetEntityImage retrieves an image for an entity from the cache
+func (s *ImageService) GetEntityImage(entityId int) (string, error) {
 	imagesDir, err := constants.GetImagesDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get images directory: %w", err)
 	}
-	imagePath := filepath.Join(imagesDir, fmt.Sprintf("%d.png", itemId))
+	imagePath := filepath.Join(imagesDir, fmt.Sprintf("%d.png", entityId))
 
 	// Check if file exists
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
@@ -47,13 +47,13 @@ func (s *ImageService) GetItemImage(itemId int) (string, error) {
 	return fmt.Sprintf("data:image/png;base64,%s", encoded), nil
 }
 
-// DeleteItemImage removes an image for an item from the cache
-func (s *ImageService) DeleteItemImage(itemId int) error {
+// DeleteEntityImage removes an image for an entity from the cache
+func (s *ImageService) DeleteEntityImage(entityId int) error {
 	imagesDir, err := constants.GetImagesDir()
 	if err != nil {
 		return fmt.Errorf("failed to get images directory: %w", err)
 	}
-	imagePath := filepath.Join(imagesDir, fmt.Sprintf("%d.png", itemId))
+	imagePath := filepath.Join(imagesDir, fmt.Sprintf("%d.png", entityId))
 
 	// Check if file exists
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
@@ -66,7 +66,7 @@ func (s *ImageService) DeleteItemImage(itemId int) error {
 	}
 
 	// Update database flag
-	_, err = s.db.Conn().Exec("UPDATE items SET has_image = 0 WHERE item_id = ?", itemId)
+	_, err = s.db.Conn().Exec("UPDATE entities SET attributes = json_set(COALESCE(attributes, '{}'), '$.has_image', 0) WHERE id = ?", entityId)
 	if err != nil {
 		return fmt.Errorf("failed to update has_image flag: %w", err)
 	}
@@ -74,8 +74,8 @@ func (s *ImageService) DeleteItemImage(itemId int) error {
 	return nil
 }
 
-// SaveItemImage saves an image for an item to the cache directory
-func (s *ImageService) SaveItemImage(itemId int, imageData string) error {
+// SaveEntityImage saves an image for an entity to the cache directory
+func (s *ImageService) SaveEntityImage(entityId int, imageData string) error {
 	// Get user config directory
 	cacheDir, err := constants.GetImagesDir()
 	if err != nil {
@@ -98,13 +98,13 @@ func (s *ImageService) SaveItemImage(itemId int, imageData string) error {
 	}
 
 	// Save to file
-	imagePath := filepath.Join(cacheDir, fmt.Sprintf("%d.png", itemId))
+	imagePath := filepath.Join(cacheDir, fmt.Sprintf("%d.png", entityId))
 	if err := os.WriteFile(imagePath, decoded, 0644); err != nil {
 		return fmt.Errorf("failed to write image file: %w", err)
 	}
 
 	// Update database flag
-	_, err = s.db.Conn().Exec("UPDATE items SET has_image = 1 WHERE item_id = ?", itemId)
+	_, err = s.db.Conn().Exec("UPDATE entities SET attributes = json_set(COALESCE(attributes, '{}'), '$.has_image', 1) WHERE id = ?", entityId)
 	if err != nil {
 		return fmt.Errorf("failed to update has_image flag: %w", err)
 	}

@@ -11,10 +11,21 @@ import {
   PenTool,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { database } from "@wailsjs/go/models";
+
+export interface DashboardStats {
+  totalEntities: number;
+  totalLinks: number;
+  quoteCount: number;
+  citedCount: number;
+  writerCount: number;
+  poetCount: number;
+  titleCount: number;
+  wordCount: number;
+  errorCount: number;
+}
 
 interface StatsCardsProps {
-  stats: database.DashboardStats | null;
+  stats: DashboardStats | null;
 }
 
 export function StatsCards({ stats }: StatsCardsProps) {
@@ -23,42 +34,42 @@ export function StatsCards({ stats }: StatsCardsProps) {
   const items = [
     {
       title: "Total Items",
-      value: stats.totalItems,
+      value: stats.totalEntities || 0,
       icon: TrendingUp,
       color: "blue",
       to: "/tables?table=items",
     },
     {
       title: "Poems",
-      value: stats.quoteCount,
+      value: stats.quoteCount || 0,
       icon: Quote,
       color: "grape",
       to: "/tables?table=items&filter=quotes",
     },
     {
       title: "Writers",
-      value: stats.writerCount,
+      value: stats.writerCount || 0,
       icon: Feather,
       color: "pink",
       to: "/tables?table=items&filter=writer",
     },
     {
       title: "Words",
-      value: stats.wordCount,
+      value: stats.wordCount || 0,
       icon: Type,
       color: "indigo",
       to: "/tables?table=items&filter=reference",
     },
     {
       title: "Total Links",
-      value: stats.totalLinks,
+      value: stats.totalLinks || 0,
       icon: LinkIcon,
       color: "cyan",
       to: "/tables?table=links",
     },
     {
       title: "Sourced",
-      value: stats.citedCount,
+      value: stats.citedCount || 0,
       icon: Book,
       color: "green",
       to: "/tables?table=items&filter=cited",
@@ -66,7 +77,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
     },
     {
       title: "Poets",
-      value: stats.poetCount,
+      value: stats.poetCount || 0,
       icon: PenTool,
       color: "teal",
       to: "/tables?table=items&filter=poets",
@@ -74,14 +85,14 @@ export function StatsCards({ stats }: StatsCardsProps) {
     },
     {
       title: "Titles",
-      value: stats.titleCount,
+      value: stats.titleCount || 0,
       icon: Heading,
       color: "violet",
       to: "/tables?table=items&filter=title",
     },
     {
       title: "Errors",
-      value: stats.errorCount,
+      value: stats.errorCount || 0,
       icon: AlertTriangle,
       color: "red",
       to: "/reports",

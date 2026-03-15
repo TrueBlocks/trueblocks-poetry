@@ -1,5 +1,1 @@
-SELECT COUNT(*)
-FROM items
-WHERE type = 'Title'
-  AND definition LIKE '%[%'
-  AND definition LIKE '%]%'
+SELECT COUNT(*) FROM entities WHERE type_slug = 'title' AND description LIKE '%[%]%'

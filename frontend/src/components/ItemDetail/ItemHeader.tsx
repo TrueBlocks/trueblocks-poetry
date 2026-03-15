@@ -13,13 +13,13 @@ import {
   Volume2,
 } from "lucide-react";
 import { BrowserOpenURL } from "@wailsjs/runtime/runtime.js";
-import { getItemColor } from "@utils/colors";
+import { getEntityColor } from "@utils/colors";
 import { database } from "@models";
 
 interface ItemHeaderProps {
-  item: database.Item;
+  item: database.Entity;
   itemId: string;
-  links: database.Link[] | null;
+  links: database.Relationship[] | null;
   revealMarkdown: boolean;
   onToggleRevealMarkdown: () => void;
   onDelete: () => void;
@@ -64,14 +64,14 @@ export function ItemHeader({
               leftSection={<Sparkles size={18} />}
               onClick={() => {
                 let query = "";
-                const type = item?.type || "";
+                const type = item?.typeSlug || "";
 
                 if (type === "Title" || type === "Writer") {
-                  query = `"${item?.word || ""}"`;
+                  query = `"${item?.primaryLabel || ""}"`;
                 } else {
-                  query = item?.definition
-                    ? `${item.word} ${item.definition}`
-                    : item?.word || "";
+                  query = item?.description
+                    ? `${item.primaryLabel} ${item.description}`
+                    : item?.primaryLabel || "";
                 }
 
                 BrowserOpenURL(
@@ -105,14 +105,13 @@ export function ItemHeader({
               loading={deleteLoading}
               disabled={
                 (links &&
-                  links.filter((l) => l.destinationItemId === Number(itemId))
-                    .length > 0) ||
+                  links.filter((l) => l.targetId === Number(itemId)).length >
+                    0) ||
                 undefined
               }
               title={
                 links &&
-                links.filter((l) => l.destinationItemId === Number(itemId))
-                  .length > 0
+                links.filter((l) => l.targetId === Number(itemId)).length > 0
                   ? "Cannot delete: item has incoming connections"
                   : "Delete this item"
               }
@@ -126,7 +125,7 @@ export function ItemHeader({
       {/* Title Row */}
       <Group gap="sm" align="center">
         <Title order={1} size="3rem" mb="sm">
-          {item.word}
+          {item.primaryLabel}
         </Title>
         <ActionIcon
           size="lg"
@@ -134,10 +133,10 @@ export function ItemHeader({
           color="gray"
           title="Copy to clipboard"
           onClick={() => {
-            navigator.clipboard.writeText(item.word);
+            navigator.clipboard.writeText(item.primaryLabel);
             notifications.show({
               title: "Copied!",
-              message: `"${item.word}" copied to clipboard`,
+              message: `"${item.primaryLabel}" copied to clipboard`,
               color: "green",
               icon: <Check size={16} />,
             });
@@ -159,11 +158,14 @@ export function ItemHeader({
       <Group gap="sm">
         <Badge
           size="lg"
-          style={{ backgroundColor: getItemColor(item.type), color: "#000" }}
+          style={{
+            backgroundColor: getEntityColor(item.typeSlug),
+            color: "#000",
+          }}
         >
-          {item.type}
+          {item.typeSlug}
         </Badge>
-        {item.type === "Reference" && (
+        {item.typeSlug === "Reference" && (
           <ActionIcon
             size="lg"
             variant="light"
@@ -174,9 +176,9 @@ export function ItemHeader({
             <Volume2 size={22} />
           </ActionIcon>
         )}
-        {item.type === "Title" &&
-          item.definition &&
-          /\[\s*\n/.test(item.definition) && (
+        {item.typeSlug === "Title" &&
+          item.description &&
+          /\[\s*\n/.test(item.description) && (
             <ActionIcon
               size="lg"
               variant="light"

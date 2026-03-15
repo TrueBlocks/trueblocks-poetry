@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Command } from "cmdk";
 import { Search, Home, Network, Plus, FileText } from "lucide-react";
-import { SearchItems } from "@wailsjs/go/main/App.js";
+import { SearchEntities } from "@wailsjs/go/main/App.js";
 import { useQuery } from "@tanstack/react-query";
 import { database } from "@models";
 
@@ -20,7 +20,7 @@ export default function CommandPalette({
 
   const { data: searchResults } = useQuery({
     queryKey: ["command-search", search],
-    queryFn: () => SearchItems(search),
+    queryFn: () => SearchEntities(search, ""),
     enabled: search.length > 2,
   });
 
@@ -183,13 +183,11 @@ export default function CommandPalette({
                 heading="Search Results"
                 style={{ padding: "0.5rem" }}
               >
-                {searchResults.slice(0, 10).map((item: database.Item) => (
+                {searchResults.slice(0, 10).map((item: database.Entity) => (
                   <Command.Item
-                    key={item.itemId}
+                    key={item.id}
                     onSelect={() =>
-                      runCommand(() =>
-                        navigate(`/item/${item.itemId}?tab=detail`),
-                      )
+                      runCommand(() => navigate(`/item/${item.id}?tab=detail`))
                     }
                     style={{
                       display: "flex",
@@ -209,7 +207,7 @@ export default function CommandPalette({
                       }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600 }}>{item.word}</div>
+                      <div style={{ fontWeight: 600 }}>{item.primaryLabel}</div>
                       <div
                         style={{
                           fontSize: "0.75rem",
@@ -224,10 +222,10 @@ export default function CommandPalette({
                             borderRadius: "0.25rem",
                           }}
                         >
-                          {item.type}
+                          {item.typeSlug}
                         </span>
                       </div>
-                      {item.definition && (
+                      {item.description && (
                         <div
                           style={{
                             fontSize: "0.875rem",
@@ -238,7 +236,7 @@ export default function CommandPalette({
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {item.definition}
+                          {item.description}
                         </div>
                       )}
                     </div>

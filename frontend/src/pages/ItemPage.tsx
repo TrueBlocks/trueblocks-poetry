@@ -7,7 +7,8 @@ import { useEffect, useState } from "react";
 import ItemDetail from "./ItemDetail";
 import Graph from "./Graph";
 import ItemEdit from "./ItemEdit";
-import { GetSettings, GetItem, GetItemByWord } from "@wailsjs/go/main/App.js";
+import { GetSettings } from "@wailsjs/go/main/App.js";
+import { GetEntity, SearchEntities } from "@wailsjs/go/services/EntityService";
 import { useUIStore } from "@stores/useUIStore";
 import { LogError } from "@utils/logger";
 
@@ -16,7 +17,7 @@ export default function ItemPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   useQueryClient();
-  const isNewItem = id === "new";
+  const isNewEntity = id === "new";
   const { setLastWordId, tabSelections, setTabSelection } = useUIStore();
 
   useQuery({
@@ -24,20 +25,21 @@ export default function ItemPage() {
     queryFn: GetSettings,
   });
 
-  const { data: item, error } = useQuery({
-    queryKey: ["item", id],
-    queryFn: () => GetItem(Number(id)),
-    enabled: !!id && !isNewItem,
+  const { data: entity, error } = useQuery({
+    queryKey: ["entity", id],
+    queryFn: () => GetEntity(Number(id)),
+    enabled: !!id && !isNewEntity,
   });
 
   useEffect(() => {
-    if (error && id && !isNewItem) {
-      GetItemByWord("poetry")
-        .then((poetryItem) => {
-          if (poetryItem) {
-            setLastWordId(poetryItem.itemId);
+    if (error && id && !isNewEntity) {
+      SearchEntities("poetry", "")
+        .then((results) => {
+          const poetryEntity = results?.[0];
+          if (poetryEntity) {
+            setLastWordId(poetryEntity.id);
             navigate(
-              `/item/${poetryItem.itemId}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`,
+              `/item/${poetryEntity.id}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`,
               { replace: true },
             );
             notifications.show({
@@ -49,23 +51,23 @@ export default function ItemPage() {
         })
         .catch((err) => LogError(`Failed to save last word: ${err}`));
     }
-  }, [error, id, isNewItem, navigate, searchParams, setLastWordId]);
+  }, [error, id, isNewEntity, navigate, searchParams, setLastWordId]);
 
   useEffect(() => {
-    if (item?.itemId && id && !isNewItem) {
+    if (entity?.id && id && !isNewEntity) {
       setLastWordId(Number(id));
     }
-  }, [id, item?.itemId, isNewItem, setLastWordId]);
+  }, [id, entity?.id, isNewEntity, setLastWordId]);
 
   const tabFromUrl = searchParams.get("tab");
   const editModeFromUrl = searchParams.get("edit") === "true";
   const activeTab = tabFromUrl || tabSelections["itemView"] || "detail";
-  const [isEditMode, setIsEditMode] = useState(editModeFromUrl || isNewItem);
+  const [isEditMode, setIsEditMode] = useState(editModeFromUrl || isNewEntity);
 
   // Update edit mode when URL changes
   useEffect(() => {
-    setIsEditMode(editModeFromUrl || isNewItem);
-  }, [editModeFromUrl, isNewItem]);
+    setIsEditMode(editModeFromUrl || isNewEntity);
+  }, [editModeFromUrl, isNewEntity]);
 
   // Sync active tab to store
   useEffect(() => {

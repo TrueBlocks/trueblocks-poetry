@@ -1,25 +1,103 @@
-export namespace database {
+export namespace config {
 	
-	export class Cliche {
-	    clicheId: number;
-	    phrase: string;
-	    definition?: string;
-	    createdAt: Date;
+	export class Field {
+	    key: string;
+	    label: string;
+	    type: string;
+	    options?: string[];
 	
 	    static createFrom(source: any = {}) {
-	        return new Cliche(source);
+	        return new Field(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.clicheId = source["clicheId"];
-	        this.phrase = source["phrase"];
-	        this.definition = source["definition"];
-	        this.createdAt = source["createdAt"];
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.type = source["type"];
+	        this.options = source["options"];
 	    }
 	}
+	export class EntityType {
+	    slug: string;
+	    displayName: string;
+	    icon: string;
+	    fields: Field[];
+	    listColumns?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new EntityType(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.slug = source["slug"];
+	        this.displayName = source["displayName"];
+	        this.icon = source["icon"];
+	        this.fields = this.convertValues(source["fields"], Field);
+	        this.listColumns = source["listColumns"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AppConfig {
+	    appName: string;
+	    version: string;
+	    entityTypes: EntityType[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AppConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.appName = source["appName"];
+	        this.version = source["version"];
+	        this.entityTypes = this.convertValues(source["entityTypes"], EntityType);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+
+}
+
+export namespace database {
+	
 	export class DashboardStats {
-	    totalItems: number;
+	    totalEntities: number;
 	    totalLinks: number;
 	    quoteCount: number;
 	    citedCount: number;
@@ -35,7 +113,7 @@ export namespace database {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.totalItems = source["totalItems"];
+	        this.totalEntities = source["totalEntities"];
 	        this.totalLinks = source["totalLinks"];
 	        this.quoteCount = source["quoteCount"];
 	        this.citedCount = source["citedCount"];
@@ -46,206 +124,50 @@ export namespace database {
 	        this.errorCount = source["errorCount"];
 	    }
 	}
-	export class Link {
-	    linkId: number;
-	    sourceItemId: number;
-	    destinationItemId: number;
-	    linkType: string;
-	    createdAt: Date;
-	
-	    static createFrom(source: any = {}) {
-	        return new Link(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.linkId = source["linkId"];
-	        this.sourceItemId = source["sourceItemId"];
-	        this.destinationItemId = source["destinationItemId"];
-	        this.linkType = source["linkType"];
-	        this.createdAt = source["createdAt"];
-	    }
-	}
-	export class Item {
-	    itemId: number;
-	    word: string;
-	    type: string;
-	    definition?: string;
-	    parsedDefinition?: parser.Segment[];
-	    derivation?: string;
-	    appendicies?: string;
-	    source?: string;
-	    sourcePg?: string;
-	    mark?: string;
-	    hasImage: number;
-	    hasTts: number;
-	    createdAt: Date;
-	    modifiedAt: Date;
-	
-	    static createFrom(source: any = {}) {
-	        return new Item(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.type = source["type"];
-	        this.definition = source["definition"];
-	        this.parsedDefinition = this.convertValues(source["parsedDefinition"], parser.Segment);
-	        this.derivation = source["derivation"];
-	        this.appendicies = source["appendicies"];
-	        this.source = source["source"];
-	        this.sourcePg = source["sourcePg"];
-	        this.mark = source["mark"];
-	        this.hasImage = source["hasImage"];
-	        this.hasTts = source["hasTts"];
-	        this.createdAt = source["createdAt"];
-	        this.modifiedAt = source["modifiedAt"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class GraphData {
-	    items: Item[];
-	    links: Link[];
-	
-	    static createFrom(source: any = {}) {
-	        return new GraphData(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.items = this.convertValues(source["items"], Item);
-	        this.links = this.convertValues(source["links"], Link);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class HubItem {
-	    itemId: number;
-	    word: string;
-	    linkCount: number;
-	    mark?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new HubItem(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.linkCount = source["linkCount"];
-	        this.mark = source["mark"];
-	    }
-	}
-	
-	
-	export class LiteraryTerm {
-	    termId: number;
-	    term: string;
-	    type?: string;
-	    definition?: string;
-	    examples?: string;
-	    notes?: string;
-	    createdAt: Date;
-	    existsInItems: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new LiteraryTerm(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.termId = source["termId"];
-	        this.term = source["term"];
-	        this.type = source["type"];
-	        this.definition = source["definition"];
-	        this.examples = source["examples"];
-	        this.notes = source["notes"];
-	        this.createdAt = source["createdAt"];
-	        this.existsInItems = source["existsInItems"];
-	    }
-	}
-	export class Name {
-	    nameId: number;
-	    name: string;
-	    type?: string;
-	    gender?: string;
+	export class Entity {
+	    id: number;
+	    typeSlug: string;
+	    primaryLabel: string;
+	    secondaryLabel?: string;
 	    description?: string;
-	    notes?: string;
+	    attributes: Record<string, any>;
+	    createdAt: Date;
+	    updatedAt: Date;
+	
+	    static createFrom(source: any = {}) {
+	        return new Entity(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.typeSlug = source["typeSlug"];
+	        this.primaryLabel = source["primaryLabel"];
+	        this.secondaryLabel = source["secondaryLabel"];
+	        this.description = source["description"];
+	        this.attributes = source["attributes"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class Relationship {
+	    id: number;
+	    sourceId: number;
+	    targetId: number;
+	    label: string;
 	    createdAt: Date;
 	
 	    static createFrom(source: any = {}) {
-	        return new Name(source);
+	        return new Relationship(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.nameId = source["nameId"];
-	        this.name = source["name"];
-	        this.type = source["type"];
-	        this.gender = source["gender"];
-	        this.description = source["description"];
-	        this.notes = source["notes"];
+	        this.id = source["id"];
+	        this.sourceId = source["sourceId"];
+	        this.targetId = source["targetId"];
+	        this.label = source["label"];
 	        this.createdAt = source["createdAt"];
-	    }
-	}
-	export class SearchOptions {
-	    query: string;
-	    types: string[];
-	    source: string;
-	    useRegex: boolean;
-	    caseSensitive: boolean;
-	    hasImage: boolean;
-	    hasTts: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new SearchOptions(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.query = source["query"];
-	        this.types = source["types"];
-	        this.source = source["source"];
-	        this.useRegex = source["useRegex"];
-	        this.caseSensitive = source["caseSensitive"];
-	        this.hasImage = source["hasImage"];
-	        this.hasTts = source["hasTts"];
 	    }
 	}
 	export class Source {
@@ -320,130 +242,63 @@ export namespace main {
 
 }
 
-export namespace parser {
-	
-	export class Token {
-	    type: string;
-	    content: string;
-	    refType?: string;
-	    refWord?: string;
-	    displayWord?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new Token(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.type = source["type"];
-	        this.content = source["content"];
-	        this.refType = source["refType"];
-	        this.refWord = source["refWord"];
-	        this.displayWord = source["displayWord"];
-	    }
-	}
-	export class Segment {
-	    type: string;
-	    content: string;
-	    preText?: string;
-	    postText?: string;
-	    tokens?: Token[];
-	    preTokens?: Token[];
-	    postTokens?: Token[];
-	
-	    static createFrom(source: any = {}) {
-	        return new Segment(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.type = source["type"];
-	        this.content = source["content"];
-	        this.preText = source["preText"];
-	        this.postText = source["postText"];
-	        this.tokens = this.convertValues(source["tokens"], Token);
-	        this.preTokens = this.convertValues(source["preTokens"], Token);
-	        this.postTokens = this.convertValues(source["postTokens"], Token);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-
-}
-
 export namespace services {
 	
-	export class DanglingLinkResult {
-	    linkId: number;
-	    sourceItemId: number;
-	    destinationItemId: number;
-	    linkType: string;
-	    sourceWord: string;
+	export class DanglingRelationshipResult {
+	    relationshipId: number;
+	    sourceId: number;
+	    targetId: number;
+	    label: string;
+	    sourceLabel: string;
 	    sourceType: string;
 	    missingSide: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new DanglingLinkResult(source);
+	        return new DanglingRelationshipResult(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.linkId = source["linkId"];
-	        this.sourceItemId = source["sourceItemId"];
-	        this.destinationItemId = source["destinationItemId"];
-	        this.linkType = source["linkType"];
-	        this.sourceWord = source["sourceWord"];
+	        this.relationshipId = source["relationshipId"];
+	        this.sourceId = source["sourceId"];
+	        this.targetId = source["targetId"];
+	        this.label = source["label"];
+	        this.sourceLabel = source["sourceLabel"];
 	        this.sourceType = source["sourceType"];
 	        this.missingSide = source["missingSide"];
 	    }
 	}
-	export class DuplicateItemDetail {
-	    itemId: number;
-	    word: string;
-	    type: string;
+	export class DuplicateEntityDetail {
+	    id: number;
+	    primaryLabel: string;
+	    typeSlug: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new DuplicateItemDetail(source);
+	        return new DuplicateEntityDetail(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.type = source["type"];
+	        this.id = source["id"];
+	        this.primaryLabel = source["primaryLabel"];
+	        this.typeSlug = source["typeSlug"];
 	    }
 	}
-	export class DuplicateItemResult {
-	    strippedWord: string;
-	    original: DuplicateItemDetail;
-	    duplicates: DuplicateItemDetail[];
+	export class DuplicateEntityResult {
+	    strippedLabel: string;
+	    original: DuplicateEntityDetail;
+	    duplicates: DuplicateEntityDetail[];
 	    count: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new DuplicateItemResult(source);
+	        return new DuplicateEntityResult(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.strippedWord = source["strippedWord"];
-	        this.original = this.convertValues(source["original"], DuplicateItemDetail);
-	        this.duplicates = this.convertValues(source["duplicates"], DuplicateItemDetail);
+	        this.strippedLabel = source["strippedLabel"];
+	        this.original = this.convertValues(source["original"], DuplicateEntityDetail);
+	        this.duplicates = this.convertValues(source["duplicates"], DuplicateEntityDetail);
 	        this.count = source["count"];
 	    }
 	
@@ -465,102 +320,177 @@ export namespace services {
 		    return a;
 		}
 	}
-	export class ItemWithUnknownTypeResult {
-	    itemId: number;
-	    word: string;
-	    type: string;
+	export class EntityWithUnknownTypeResult {
+	    id: number;
+	    primaryLabel: string;
+	    typeSlug: string;
 	    incomingLinkCount: number;
-	    singleIncomingLinkItemId?: number;
-	    singleIncomingLinkWord?: string;
+	    singleIncomingLinkId?: number;
+	    singleIncomingLinkLabel?: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ItemWithUnknownTypeResult(source);
+	        return new EntityWithUnknownTypeResult(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.type = source["type"];
+	        this.id = source["id"];
+	        this.primaryLabel = source["primaryLabel"];
+	        this.typeSlug = source["typeSlug"];
 	        this.incomingLinkCount = source["incomingLinkCount"];
-	        this.singleIncomingLinkItemId = source["singleIncomingLinkItemId"];
-	        this.singleIncomingLinkWord = source["singleIncomingLinkWord"];
+	        this.singleIncomingLinkId = source["singleIncomingLinkId"];
+	        this.singleIncomingLinkLabel = source["singleIncomingLinkLabel"];
 	    }
 	}
-	export class ItemWithoutDefinitionResult {
-	    itemId: number;
-	    word: string;
-	    type: string;
+	export class EntityWithoutDescriptionResult {
+	    id: number;
+	    primaryLabel: string;
+	    typeSlug: string;
 	    hasMissingData: boolean;
-	    singleIncomingLinkItemId?: number;
-	    singleIncomingLinkWord?: string;
+	    singleIncomingLinkId?: number;
+	    singleIncomingLinkLabel?: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ItemWithoutDefinitionResult(source);
+	        return new EntityWithoutDescriptionResult(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.type = source["type"];
+	        this.id = source["id"];
+	        this.primaryLabel = source["primaryLabel"];
+	        this.typeSlug = source["typeSlug"];
 	        this.hasMissingData = source["hasMissingData"];
-	        this.singleIncomingLinkItemId = source["singleIncomingLinkItemId"];
-	        this.singleIncomingLinkWord = source["singleIncomingLinkWord"];
+	        this.singleIncomingLinkId = source["singleIncomingLinkId"];
+	        this.singleIncomingLinkLabel = source["singleIncomingLinkLabel"];
 	    }
 	}
-	export class LinkOrTagResult {
-	    linkCreated: boolean;
-	    message: string;
+	export class GraphData {
+	    nodes: database.Entity[];
+	    edges: database.Relationship[];
 	
 	    static createFrom(source: any = {}) {
-	        return new LinkOrTagResult(source);
+	        return new GraphData(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.linkCreated = source["linkCreated"];
-	        this.message = source["message"];
+	        this.nodes = this.convertValues(source["nodes"], database.Entity);
+	        this.edges = this.convertValues(source["edges"], database.Relationship);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
-	export class LinkedItemNotInDefinitionResult {
-	    itemId: number;
-	    word: string;
-	    type: string;
-	    missingReferences: string[];
+	export class MissingReferenceDetail {
+	    label: string;
+	    relationshipId: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new LinkedItemNotInDefinitionResult(source);
+	        return new MissingReferenceDetail(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.type = source["type"];
-	        this.missingReferences = source["missingReferences"];
+	        this.label = source["label"];
+	        this.relationshipId = source["relationshipId"];
 	    }
 	}
-	export class OrphanedItemResult {
-	    itemId: number;
-	    word: string;
-	    type: string;
+	export class LinkedEntityNotInDescriptionResult {
+	    id: number;
+	    primaryLabel: string;
+	    typeSlug: string;
+	    missingReferences: MissingReferenceDetail[];
 	
 	    static createFrom(source: any = {}) {
-	        return new OrphanedItemResult(source);
+	        return new LinkedEntityNotInDescriptionResult(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.type = source["type"];
+	        this.id = source["id"];
+	        this.primaryLabel = source["primaryLabel"];
+	        this.typeSlug = source["typeSlug"];
+	        this.missingReferences = this.convertValues(source["missingReferences"], MissingReferenceDetail);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class OrphanedEntityResult {
+	    id: number;
+	    primaryLabel: string;
+	    typeSlug: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OrphanedEntityResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.primaryLabel = source["primaryLabel"];
+	        this.typeSlug = source["typeSlug"];
+	    }
+	}
+	export class RelationshipDetail {
+	    id: number;
+	    sourceId: number;
+	    targetId: number;
+	    label: string;
+	    otherEntityId: number;
+	    otherEntityLabel: string;
+	    otherEntityType: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RelationshipDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.sourceId = source["sourceId"];
+	        this.targetId = source["targetId"];
+	        this.label = source["label"];
+	        this.otherEntityId = source["otherEntityId"];
+	        this.otherEntityLabel = source["otherEntityLabel"];
+	        this.otherEntityType = source["otherEntityType"];
 	    }
 	}
 	export class SelfReferenceResult {
-	    itemId: number;
-	    word: string;
-	    type: string;
+	    id: number;
+	    primaryLabel: string;
+	    typeSlug: string;
 	    tag: string;
 	
 	    static createFrom(source: any = {}) {
@@ -569,9 +499,9 @@ export namespace services {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.type = source["type"];
+	        this.id = source["id"];
+	        this.primaryLabel = source["primaryLabel"];
+	        this.typeSlug = source["typeSlug"];
 	        this.tag = source["tag"];
 	    }
 	}
@@ -594,9 +524,9 @@ export namespace services {
 	    }
 	}
 	export class UnknownTagResult {
-	    itemId: number;
-	    word: string;
-	    type: string;
+	    id: number;
+	    primaryLabel: string;
+	    typeSlug: string;
 	    unknownTags: string[];
 	    tagCount: number;
 	
@@ -606,9 +536,9 @@ export namespace services {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.type = source["type"];
+	        this.id = source["id"];
+	        this.primaryLabel = source["primaryLabel"];
+	        this.typeSlug = source["typeSlug"];
 	        this.unknownTags = source["unknownTags"];
 	        this.tagCount = source["tagCount"];
 	    }
@@ -628,9 +558,9 @@ export namespace services {
 	    }
 	}
 	export class UnlinkedReferenceResult {
-	    itemId: number;
-	    word: string;
-	    type: string;
+	    id: number;
+	    primaryLabel: string;
+	    typeSlug: string;
 	    unlinkedRefs: UnlinkedReferenceDetail[];
 	    refCount: number;
 	
@@ -640,9 +570,9 @@ export namespace services {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.itemId = source["itemId"];
-	        this.word = source["word"];
-	        this.type = source["type"];
+	        this.id = source["id"];
+	        this.primaryLabel = source["primaryLabel"];
+	        this.typeSlug = source["typeSlug"];
 	        this.unlinkedRefs = this.convertValues(source["unlinkedRefs"], UnlinkedReferenceDetail);
 	        this.refCount = source["refCount"];
 	    }

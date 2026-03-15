@@ -20,22 +20,20 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
-  SearchItems,
-  GetAllLinks,
-  GetAllCliches,
-  GetAllNames,
-  GetAllLiteraryTerms,
-  MergeLiteraryTerm,
-  DeleteLiteraryTerm,
   GetAllSources,
   GetSettings,
-  GetItemImage,
+  GetEntityImage,
   RunAdHocQuery,
   AddRecentSearch,
-  ToggleItemMark,
-  GetPoetIds,
 } from "@wailsjs/go/main/App.js";
-import { LogInfo, LogError } from "@wailsjs/runtime/runtime.js";
+import {
+  GetEntity,
+  UpdateEntity,
+  GetAllEntities,
+  GetAllRelationships,
+} from "@wailsjs/go/services/EntityService";
+import { LogError } from "@wailsjs/runtime/runtime.js";
+import { database } from "@models";
 import { LogError as UtilsLogError } from "@utils/logger";
 import {
   ArrowUp,
@@ -43,9 +41,7 @@ import {
   ChevronsUpDown,
   Search,
   AlertTriangle,
-  Merge,
 } from "lucide-react";
-import { notifications } from "@mantine/notifications";
 import { useUIStore } from "@stores/useUIStore";
 
 // Table data can be any object type
@@ -287,38 +283,16 @@ export default function Tables() {
     }
   }, [settings]);
 
-  // Fetch all items
-  const { data: allItems, isLoading: itemsLoading } = useQuery({
-    queryKey: ["allItems"],
-    queryFn: () => SearchItems(""),
-    enabled: selectedTable === "items",
+  // Fetch all entities
+  const { data: allEntities, isLoading: entitiesLoading } = useQuery({
+    queryKey: ["allEntities"],
+    queryFn: () => GetAllEntities(),
   });
 
   // Fetch all links
   const { data: allLinks, isLoading: linksLoading } = useQuery({
     queryKey: ["allLinks"],
-    queryFn: () => GetAllLinks(),
-  });
-
-  // Fetch all cliches
-  const { data: allCliches, isLoading: clichesLoading } = useQuery({
-    queryKey: ["allCliches"],
-    queryFn: () => GetAllCliches(),
-    enabled: selectedTable === "cliches",
-  });
-
-  // Fetch all names
-  const { data: allNames, isLoading: namesLoading } = useQuery({
-    queryKey: ["allNames"],
-    queryFn: () => GetAllNames(),
-    enabled: selectedTable === "names",
-  });
-
-  // Fetch all literary terms
-  const { data: allLiteraryTerms, isLoading: literaryTermsLoading } = useQuery({
-    queryKey: ["allLiteraryTerms"],
-    queryFn: () => GetAllLiteraryTerms(),
-    enabled: selectedTable === "literaryTerms",
+    queryFn: () => GetAllRelationships(),
   });
 
   // Fetch all sources
@@ -326,13 +300,6 @@ export default function Tables() {
     queryKey: ["allSources"],
     queryFn: () => GetAllSources(),
     enabled: selectedTable === "sources",
-  });
-
-  // Fetch poet IDs
-  const { data: poetIds, isLoading: poetIdsLoading } = useQuery({
-    queryKey: ["poetIds"],
-    queryFn: () => GetPoetIds(),
-    enabled: selectedTable === "items" && filterType === "poets",
   });
 
   // Fetch ad-hoc query results
@@ -347,15 +314,35 @@ export default function Tables() {
     enabled: selectedTable === "adhoc" && isSqlSearch,
   });
 
+  // Fetch legacy tables directly
+  const { data: clichesData, isLoading: clichesLoading } = useQuery({
+    queryKey: ["clichesTable"],
+    queryFn: () => RunAdHocQuery("SELECT * FROM cliches"),
+    enabled: selectedTable === "cliches",
+  });
+
+  const { data: namesData, isLoading: namesLoading } = useQuery({
+    queryKey: ["namesTable"],
+    queryFn: () => RunAdHocQuery("SELECT * FROM names"),
+    enabled: selectedTable === "names",
+  });
+
+  const { data: literaryTermsData, isLoading: literaryTermsLoading } = useQuery(
+    {
+      queryKey: ["literaryTermsTable"],
+      queryFn: () => RunAdHocQuery("SELECT * FROM literary_terms"),
+      enabled: selectedTable === "literaryTerms",
+    },
+  );
+
   const isLoading =
-    itemsLoading ||
+    entitiesLoading ||
     linksLoading ||
-    clichesLoading ||
-    namesLoading ||
-    literaryTermsLoading ||
     sourcesLoading ||
     adHocLoading ||
-    poetIdsLoading;
+    clichesLoading ||
+    namesLoading ||
+    literaryTermsLoading;
 
   // Calculate link counts for items
   const linkCounts = useMemo(() => {
@@ -363,14 +350,14 @@ export default function Tables() {
 
     const counts: Record<number, { incoming: number; outgoing: number }> = {};
     allLinks.forEach((link) => {
-      if (!counts[link.sourceItemId]) {
-        counts[link.sourceItemId] = { incoming: 0, outgoing: 0 };
+      if (!counts[link.sourceId]) {
+        counts[link.sourceId] = { incoming: 0, outgoing: 0 };
       }
-      if (!counts[link.destinationItemId]) {
-        counts[link.destinationItemId] = { incoming: 0, outgoing: 0 };
+      if (!counts[link.targetId]) {
+        counts[link.targetId] = { incoming: 0, outgoing: 0 };
       }
-      counts[link.sourceItemId].outgoing++;
-      counts[link.destinationItemId].incoming++;
+      counts[link.sourceId].outgoing++;
+      counts[link.targetId].incoming++;
     });
     return counts;
   }, [allLinks, selectedTable]);
@@ -381,26 +368,52 @@ export default function Tables() {
 
   // Map Title items to their Writer items
   const titleToWriter = useMemo(() => {
-    if (!allItems || !allLinks) return new Map<number, number>();
+    if (!allEntities || !allLinks) return new Map<number, number>();
 
     const itemTypes = new Map<number, string>();
-    allItems.forEach((i) => itemTypes.set(i.itemId, i.type));
+    allEntities.forEach((i) => itemTypes.set(i.id, i.typeSlug));
 
     const map = new Map<number, number>();
 
     allLinks.forEach((l) => {
-      const sType = itemTypes.get(l.sourceItemId);
-      const dType = itemTypes.get(l.destinationItemId);
+      const sType = (itemTypes.get(l.sourceId) || "").toLowerCase();
+      const dType = (itemTypes.get(l.targetId) || "").toLowerCase();
 
-      if (sType === "Title" && dType === "Writer") {
-        map.set(l.sourceItemId, l.destinationItemId);
-      } else if (dType === "Title" && sType === "Writer") {
-        map.set(l.destinationItemId, l.sourceItemId);
+      if (sType === "title" && dType === "writer") {
+        map.set(l.sourceId, l.targetId);
+      } else if (dType === "title" && sType === "writer") {
+        map.set(l.targetId, l.sourceId);
       }
     });
 
     return map;
-  }, [allItems, allLinks]);
+  }, [allEntities, allLinks]);
+
+  // Pre-calculate writers with poems for the "poets" filter
+  const writersWithPoems = useMemo(() => {
+    const writers = new Set<number>();
+    if (!titleToWriter || !allEntities) return writers;
+
+    // Get all titles that are poems (have brackets in description)
+    const poemTitles = new Set<number>();
+    allEntities.forEach((e) => {
+      if (e.typeSlug === "title" && e.description) {
+        const openBrackets = (e.description.match(/\[/g) || []).length;
+        const closeBrackets = (e.description.match(/\]/g) || []).length;
+        if (openBrackets > 0 && openBrackets === closeBrackets) {
+          poemTitles.add(e.id);
+        }
+      }
+    });
+
+    // Find writers linked to these poem titles
+    titleToWriter.forEach((writerId, titleId) => {
+      if (poemTitles.has(titleId)) {
+        writers.add(writerId);
+      }
+    });
+    return writers;
+  }, [titleToWriter, allEntities]);
 
   // Handle column click for sorting
   const handleColumnClick = (field: string) => {
@@ -503,13 +516,13 @@ export default function Tables() {
 
     // Handle link counts for items table
     if (field === "nIncoming") {
-      const aId = a.itemId as number;
-      const bId = b.itemId as number;
+      const aId = a.id as number;
+      const bId = b.id as number;
       aVal = linkCounts[aId]?.incoming || 0;
       bVal = linkCounts[bId]?.incoming || 0;
     } else if (field === "nOutgoing") {
-      const aId = a.itemId as number;
-      const bId = b.itemId as number;
+      const aId = a.id as number;
+      const bId = b.id as number;
       aVal = linkCounts[aId]?.outgoing || 0;
       bVal = linkCounts[bId]?.outgoing || 0;
     }
@@ -535,16 +548,16 @@ export default function Tables() {
   const getCurrentData = () => {
     let sourceData: TableData[] = [];
 
-    if (selectedTable === "items" && allItems) {
-      sourceData = allItems as unknown as TableData[];
+    if (selectedTable === "items" && allEntities) {
+      sourceData = allEntities as unknown as TableData[];
     } else if (selectedTable === "links" && allLinks) {
       sourceData = allLinks as unknown as TableData[];
-    } else if (selectedTable === "cliches" && allCliches) {
-      sourceData = allCliches as unknown as TableData[];
-    } else if (selectedTable === "names" && allNames) {
-      sourceData = allNames as unknown as TableData[];
-    } else if (selectedTable === "literaryTerms" && allLiteraryTerms) {
-      sourceData = allLiteraryTerms as unknown as TableData[];
+    } else if (selectedTable === "cliches" && clichesData) {
+      sourceData = clichesData;
+    } else if (selectedTable === "names" && namesData) {
+      sourceData = namesData;
+    } else if (selectedTable === "literaryTerms" && literaryTermsData) {
+      sourceData = literaryTermsData;
     } else if (selectedTable === "sources" && allSources) {
       sourceData = allSources as unknown as TableData[];
     } else if (selectedTable === "adhoc" && adHocResults) {
@@ -554,31 +567,56 @@ export default function Tables() {
     // Apply URL filters
     if (filterType && selectedTable === "items") {
       sourceData = sourceData.filter((row: TableData) => {
+        const typeSlug = String(row.typeSlug || "").toLowerCase();
         switch (filterType) {
           case "quotes":
             // Matches logic in pkg/parser/parser.go IsPoem()
-            if (row.type !== "Title" || !row.definition) return false;
+            if (typeSlug !== "title" || !row.description) return false;
             const openBrackets = (
-              (row.definition as string)?.match(/\[/g) || []
+              (row.description as string)?.match(/\[/g) || []
             ).length;
             const closeBrackets = (
-              (row.definition as string)?.match(/\]/g) || []
+              (row.description as string)?.match(/\]/g) || []
             ).length;
             return openBrackets > 0 && openBrackets === closeBrackets;
           case "writer":
-            return row.type === "Writer";
+            return typeSlug === "writer";
           case "reference":
-            return row.type === "Reference";
+            return typeSlug === "reference";
           case "title":
-            return row.type === "Title";
+            return typeSlug === "title";
           case "cited":
-            return row.source && row.source !== "";
-          case "poets":
-            return poetIds ? poetIds.includes(row.itemId as number) : false;
+            return (
+              (row.attributes as Record<string, unknown>)?.source &&
+              (row.attributes as Record<string, unknown>)?.source !== ""
+            );
+          case "poets": {
+            const entity = row as unknown as database.Entity;
+            if (typeSlug !== "writer") return false;
+
+            // Check for image
+            const hasImage =
+              (entity.attributes as Record<string, unknown>)?.has_image === 1 ||
+              (entity.attributes as Record<string, unknown>)?.has_image ===
+                true;
+            if (!hasImage) return false;
+
+            // Check for poems (incoming links from Titles)
+            // We need to check if this writer is the target of any link from a Title
+            // We can use the titleToWriter map, but that maps Title -> Writer
+            // So we need to check if any value in titleToWriter equals this entity.id
+            // This is O(N) which is slow inside a filter loop.
+            // Better to pre-calculate a set of writers with poems.
+            return writersWithPoems.has(entity.id);
+          }
           default:
             return true;
         }
       });
+    } else if (selectedTable === "items") {
+      // Default filter for items table if no filter is specified
+      // Show only references by default to match previous behavior
+      sourceData = sourceData.filter((e) => e.typeSlug === "reference");
     }
 
     // Apply search filter (skip for adhoc queries as the query IS the search)
@@ -618,10 +656,11 @@ export default function Tables() {
       const idsToFetch = new Set<number>();
 
       data.forEach((row: TableData) => {
-        if (row.type === "Writer") {
-          idsToFetch.add(row.itemId as number);
-        } else if (row.type === "Title") {
-          const writerId = titleToWriter.get(row.itemId as number);
+        const typeSlug = String(row.typeSlug || "").toLowerCase();
+        if (typeSlug === "writer") {
+          idsToFetch.add(row.id as number);
+        } else if (typeSlug === "title") {
+          const writerId = titleToWriter.get(row.id as number);
           if (writerId) idsToFetch.add(writerId);
         }
       });
@@ -638,7 +677,7 @@ export default function Tables() {
       await Promise.all(
         missingIds.map(async (id) => {
           try {
-            const img = await GetItemImage(id);
+            const img = await GetEntityImage(id);
             newImages[id] = img || null;
           } catch (error) {
             LogError(`Failed to load image for item ${id}: ${error}`);
@@ -711,8 +750,8 @@ export default function Tables() {
   };
 
   const handleMarkToggle = useCallback(
-    async (itemId: number, currentMark: string | null) => {
-      const newMark = !currentMark;
+    async (id: number, currentMark: string | null) => {
+      const newMark = currentMark === "1" ? "0" : "1";
       try {
         // Clear table data immediately to prevent stale data display
         if (selectedTable === "adhoc") {
@@ -722,7 +761,12 @@ export default function Tables() {
           // or just let the invalidation handle it. The user specifically mentioned "appending" which likely refers to adhoc results.
         }
 
-        await ToggleItemMark(itemId, newMark);
+        const entity = await GetEntity(id);
+        if (entity) {
+          if (!entity.attributes) entity.attributes = {};
+          entity.attributes.mark = newMark;
+          await UpdateEntity(entity);
+        }
         // Invalidate queries to refresh data
         queryClient.invalidateQueries({ queryKey: ["allItems"] });
         queryClient.invalidateQueries({ queryKey: ["search"] });
@@ -747,9 +791,14 @@ export default function Tables() {
         align: "center",
         render: (row) => (
           <Checkbox
-            checked={!!row.mark}
+            checked={!!(row.attributes as Record<string, unknown>)?.mark}
             onChange={() =>
-              handleMarkToggle(row.itemId as number, row.mark as string | null)
+              handleMarkToggle(
+                row.id as number,
+                (row.attributes as Record<string, unknown>)?.mark as
+                  | string
+                  | null,
+              )
             }
             size="xs"
           />
@@ -759,23 +808,26 @@ export default function Tables() {
         field: "type",
         header: "Type",
         width: "10%",
-        render: (row) => <Badge size="sm">{row.type as React.ReactNode}</Badge>,
+        render: (row) => (
+          <Badge size="sm">{row.typeSlug as React.ReactNode}</Badge>
+        ),
       },
       {
-        field: "word",
-        header: "Word",
+        field: "primaryLabel",
+        header: "Primary Label",
         width: "20%",
         render: (row, extraData) => {
           let imageSrc: string | null = null;
           let linkedItemId: number | null = null;
+          const typeSlug = String(row.typeSlug || "").toLowerCase();
 
-          if (row.type === "Writer") {
-            const itemId = row.itemId as number;
-            imageSrc = extraData?.itemImages?.[itemId] ?? null;
-            linkedItemId = itemId;
-          } else if (row.type === "Title") {
-            const itemId = row.itemId as number;
-            const writerId = extraData?.titleToWriter?.get(itemId);
+          if (typeSlug === "writer") {
+            const id = row.id as number;
+            imageSrc = extraData?.itemImages?.[id] ?? null;
+            linkedItemId = id;
+          } else if (typeSlug === "title") {
+            const id = row.id as number;
+            const writerId = extraData?.titleToWriter?.get(id);
             if (writerId) {
               imageSrc = extraData?.itemImages?.[writerId] ?? null;
               linkedItemId = writerId;
@@ -786,10 +838,10 @@ export default function Tables() {
             <Group gap="xs" wrap="nowrap">
               <Anchor
                 component={Link}
-                to={`/item/${row.itemId as number}?tab=detail`}
+                to={`/item/${row.id as number}?tab=detail`}
                 fw={600}
               >
-                {row.word as React.ReactNode}
+                {row.primaryLabel as React.ReactNode}
               </Anchor>
               {imageSrc &&
                 (linkedItemId ? (
@@ -830,7 +882,7 @@ export default function Tables() {
         align: "right",
         width: "8%",
         render: (row, extraData) => {
-          const counts = extraData?.linkCounts?.[row.itemId as number] || {
+          const counts = extraData?.linkCounts?.[row.id as number] || {
             incoming: 0,
             outgoing: 0,
           };
@@ -843,7 +895,7 @@ export default function Tables() {
         align: "right",
         width: "8%",
         render: (row, extraData) => {
-          const counts = extraData?.linkCounts?.[row.itemId as number] || {
+          const counts = extraData?.linkCounts?.[row.id as number] || {
             incoming: 0,
             outgoing: 0,
           };
@@ -856,13 +908,13 @@ export default function Tables() {
         width: "54%",
         render: (row) => (
           <div>
-            {row.definition ? (
+            {row.description ? (
               <Text size="sm" lineClamp={2}>
-                {row.definition as string}
+                {row.description as string}
               </Text>
             ) : (
               // <DefinitionRenderer
-              //   definition={row.definition as string}
+              //   definition={row.description as string}
               //   compact={true}
               //   lineClamp={2}
               // />
@@ -879,40 +931,40 @@ export default function Tables() {
 
   const linksColumns: ColumnDef[] = [
     {
-      field: "sourceItemId",
+      field: "sourceId",
       header: "Source Item",
       width: "30%",
       render: (row) => (
         <Anchor
           component={Link}
-          to={`/item/${row.sourceItemId}?tab=detail`}
+          to={`/item/${row.sourceId}?tab=detail`}
           size="sm"
         >
-          Item #{row.sourceItemId as React.ReactNode}
+          Item #{row.sourceId as React.ReactNode}
         </Anchor>
       ),
     },
     {
-      field: "destinationItemId",
+      field: "targetId",
       header: "Destination Item",
       width: "30%",
       render: (row) => (
         <Anchor
           component={Link}
-          to={`/item/${row.destinationItemId}?tab=detail`}
+          to={`/item/${row.targetId}?tab=detail`}
           size="sm"
         >
-          Item #{row.destinationItemId as React.ReactNode}
+          Item #{row.targetId as React.ReactNode}
         </Anchor>
       ),
     },
     {
-      field: "linkType",
+      field: "label",
       header: "Link Type",
       width: "20%",
       render: (row) => (
         <Badge size="sm" variant="light">
-          {row.linkType as React.ReactNode}
+          {row.label as React.ReactNode}
         </Badge>
       ),
     },
@@ -936,12 +988,12 @@ export default function Tables() {
       render: (row) => <Text fw={600}>{row.phrase as React.ReactNode}</Text>,
     },
     {
-      field: "createdAt",
+      field: "created_at",
       header: "Created",
       width: "30%",
       render: (row) => (
         <Text size="sm" c="dimmed">
-          {new Date(row.createdAt as string).toLocaleDateString()}
+          {new Date(row.created_at as string).toLocaleDateString()}
         </Text>
       ),
     },
@@ -969,23 +1021,21 @@ export default function Tables() {
       field: "gender",
       header: "Gender",
       width: "10%",
-      render: (row) =>
-        row.gender ? (
+      render: (row) => {
+        const gender = row.gender as string;
+        return gender ? (
           <Badge
             size="sm"
             color={
-              row.gender === "male"
-                ? "blue"
-                : row.gender === "female"
-                  ? "pink"
-                  : "gray"
+              gender === "male" ? "blue" : gender === "female" ? "pink" : "gray"
             }
           >
-            {row.gender as React.ReactNode}
+            {gender}
           </Badge>
         ) : (
           <em style={{ color: "#999" }}>—</em>
-        ),
+        );
+      },
     },
     {
       field: "description",
@@ -1001,6 +1051,7 @@ export default function Tables() {
     },
   ];
 
+  /*
   const handleMergeTerm = async (termId: number, termName: string) => {
     try {
       LogInfo(`Merging term: ${termName} (${termId})`);
@@ -1041,6 +1092,7 @@ export default function Tables() {
       });
     }
   };
+  */
 
   const literaryTermsColumns: ColumnDef[] = [
     {
@@ -1050,11 +1102,6 @@ export default function Tables() {
       render: (row) => (
         <Group gap="xs">
           <Text fw={600}>{String(row.term)}</Text>
-          {!!row.existsInItems && (
-            <Text size="xs" c="dimmed">
-              (present)
-            </Text>
-          )}
         </Group>
       ),
     },
@@ -1064,19 +1111,7 @@ export default function Tables() {
       width: "10%",
       render: (row) =>
         row.type ? (
-          <Badge
-            size="sm"
-            style={row.type === "Removed" ? { cursor: "pointer" } : {}}
-            color={row.type === "Removed" ? "red" : "blue"}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (row.type === "Removed") {
-                handleDeleteTerm(row.termId as number, row.term as string);
-              }
-            }}
-          >
-            {row.type as React.ReactNode}
-          </Badge>
+          <Badge size="sm">{row.type as React.ReactNode}</Badge>
         ) : (
           <em style={{ color: "#999" }}>—</em>
         ),
@@ -1084,7 +1119,7 @@ export default function Tables() {
     {
       field: "definition",
       header: "Definition (Preview)",
-      width: "55%",
+      width: "70%",
       render: (row) => (
         <Text size="sm" lineClamp={2}>
           {(row.definition as React.ReactNode) || (
@@ -1092,27 +1127,6 @@ export default function Tables() {
           )}
         </Text>
       ),
-    },
-    {
-      field: "actions",
-      header: "Actions",
-      width: "15%",
-      align: "center",
-      sortable: false,
-      render: (row) =>
-        row.existsInItems && row.type !== "Removed" ? (
-          <Badge
-            color="orange"
-            style={{ cursor: "pointer" }}
-            leftSection={<Merge size={12} />}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleMergeTerm(row.termId as number, row.term as string);
-            }}
-          >
-            Merge
-          </Badge>
-        ) : null,
     },
   ];
 
@@ -1153,19 +1167,34 @@ export default function Tables() {
   const adHocColumns: ColumnDef[] = useMemo(() => {
     if (!adHocResults || adHocResults.length === 0) return [];
 
-    // If the result looks like an item (has itemId, word, type), use items columns
+    // If the result looks like an item (has id, word, type), use items columns
     const firstRow = adHocResults[0];
-    if ("itemId" in firstRow || "item_id" in firstRow) {
+    if ("id" in firstRow || "item_id" in firstRow) {
       // Map snake_case to camelCase if needed for the itemsColumns renderer
-      if ("item_id" in firstRow && !("itemId" in firstRow)) {
-        adHocResults.forEach((row: TableData) => {
-          row.itemId = row.item_id;
-          row.word = row.word;
-          row.type = row.type;
-          row.definition = row.definition;
-          // Add other fields as needed
-        });
-      }
+      adHocResults.forEach((row: TableData) => {
+        if ("item_id" in row && !("id" in row)) {
+          row.id = row.item_id;
+        }
+        if ("word" in row && !("primaryLabel" in row)) {
+          row.primaryLabel = row.word;
+        }
+        if ("primary_label" in row && !("primaryLabel" in row)) {
+          row.primaryLabel = row.primary_label;
+        }
+        if ("type" in row && !("typeSlug" in row)) {
+          row.typeSlug = row.type;
+        }
+        if ("type_slug" in row && !("typeSlug" in row)) {
+          row.typeSlug = row.type_slug;
+        }
+        if (typeof row.attributes === "string") {
+          try {
+            row.attributes = JSON.parse(row.attributes);
+          } catch {
+            // ignore
+          }
+        }
+      });
 
       // Return items columns but remove nIncoming/nOutgoing and expand definition
       return itemsColumns
@@ -1214,21 +1243,21 @@ export default function Tables() {
   const getKeyField = () => {
     switch (selectedTable) {
       case "items":
-        return "itemId";
+        return "id";
       case "links":
-        return "linkId";
+        return "id";
       case "cliches":
-        return "clicheId";
+        return "id";
       case "names":
-        return "nameId";
+        return "id";
       case "literaryTerms":
-        return "termId";
+        return "id";
       case "sources":
         return "sourceId";
       case "adhoc":
         return adHocColumns.length > 0 ? adHocColumns[0].field : "id";
       default:
-        return "itemId";
+        return "id";
     }
   };
 
@@ -1266,8 +1295,8 @@ export default function Tables() {
                   value={selectedTable}
                   onChange={handleTableChange}
                   data={[
-                    { value: "items", label: "Items" },
-                    { value: "links", label: "Links" },
+                    { value: "items", label: "Entities" },
+                    { value: "links", label: "Relationships" },
                     { value: "cliches", label: "Clichés" },
                     { value: "names", label: "Names" },
                     { value: "literaryTerms", label: "Literary Terms" },

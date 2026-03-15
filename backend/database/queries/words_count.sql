@@ -1,3 +1,1 @@
-SELECT COUNT(*)
-FROM items
-WHERE type = 'Reference'
+SELECT COUNT(*) FROM entities WHERE type_slug = 'reference'

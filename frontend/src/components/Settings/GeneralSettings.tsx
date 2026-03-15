@@ -19,7 +19,7 @@ import {
   GetTTSCacheInfo,
   GetImageCacheInfo,
   GetDatabaseFileSize,
-  GetItem,
+  GetEntity,
 } from "@wailsjs/go/main/App.js";
 import { AlertCircle, Search, Edit } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
@@ -95,7 +95,8 @@ export function GeneralSettings() {
 
   const { data: lastWordItem } = useQuery({
     queryKey: ["lastWordItem", settings?.lastWordId],
-    queryFn: () => (settings?.lastWordId ? GetItem(settings.lastWordId) : null),
+    queryFn: () =>
+      settings?.lastWordId ? GetEntity(settings.lastWordId) : null,
     enabled: !!settings?.lastWordId,
   });
 
@@ -225,7 +226,7 @@ export function GeneralSettings() {
                   let displayValue = String(value);
 
                   if (key === "lastWordId" && lastWordItem) {
-                    displayValue = `${value} (${lastWordItem.word})`;
+                    displayValue = `${value} (${lastWordItem.primaryLabel})`;
                   } else if (key === "collapsed" && typeof value === "object") {
                     const bools = Object.values(
                       value as Record<string, boolean>,

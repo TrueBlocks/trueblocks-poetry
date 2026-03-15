@@ -13,11 +13,11 @@ import { Link as RouterLink } from "react-router-dom";
 import { CheckSquare, ArrowRight, Network } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { database } from "@wailsjs/go/models";
-import { ToggleItemMark } from "@wailsjs/go/main/App";
+import { ToggleEntityMark } from "@wailsjs/go/main/App";
 import { LogError } from "@utils/logger";
 
 interface WorkbenchProps {
-  items: database.Item[] | null;
+  items: database.Entity[] | null;
   onToggle?: () => void;
 }
 
@@ -27,7 +27,7 @@ export function Workbench({ items, onToggle }: WorkbenchProps) {
 
   const handleUnmark = async (itemId: number) => {
     try {
-      await ToggleItemMark(itemId, false);
+      await ToggleEntityMark(itemId, false);
       queryClient.invalidateQueries({ queryKey: ["markedItems"] });
       queryClient.invalidateQueries({ queryKey: ["allItems"] });
     } catch (error) {
@@ -70,20 +70,20 @@ export function Workbench({ items, onToggle }: WorkbenchProps) {
           <Table.Tbody>
             {items && items.length > 0 ? (
               items.map((item) => (
-                <Table.Tr key={item.itemId}>
+                <Table.Tr key={item.id}>
                   <Table.Td>
                     <Checkbox
                       checked={true}
-                      onChange={() => handleUnmark(item.itemId)}
+                      onChange={() => handleUnmark(item.id)}
                       size="xs"
                     />
                   </Table.Td>
-                  <Table.Td fw={500}>{item.word}</Table.Td>
-                  <Table.Td>{item.mark}</Table.Td>
+                  <Table.Td fw={500}>{item.primaryLabel}</Table.Td>
+                  <Table.Td>{item.attributes?.mark}</Table.Td>
                   <Table.Td>
                     <Button
                       component={RouterLink}
-                      to={`/item/${item.itemId}`}
+                      to={`/item/${item.id}`}
                       variant="subtle"
                       size="xs"
                       rightSection={<ArrowRight size={14} />}

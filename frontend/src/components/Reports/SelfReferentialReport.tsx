@@ -12,9 +12,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import {
-  GetSelfReferentialItems,
-  GetItem,
-  UpdateItem,
+  GetSelfReferentialEntities,
+  GetEntity,
+  UpdateEntity,
 } from "@wailsjs/go/main/App";
 import { AlertTriangle, Check } from "lucide-react";
 import { notifications } from "@mantine/notifications";
@@ -29,67 +29,73 @@ export function SelfReferentialReport() {
   const { data: selfRefs, isLoading } = useQuery({
     queryKey: ["selfReferentialItems"],
     queryFn: async () => {
-      const results = await GetSelfReferentialItems();
+      const results = await GetSelfReferentialEntities();
       return results as SelfRefResult[];
     },
   });
 
   const handleFix = async (itemResult: SelfRefResult) => {
-    setFixingItem(itemResult.itemId);
+    setFixingItem(itemResult.id);
     try {
-      const item = await GetItem(itemResult.itemId);
+      const item = await GetEntity(itemResult.id);
       if (!item) {
         throw new Error("Item not found");
       }
 
       // Reconstruct regex based on the tag found
       const tagContent = itemResult.tag.slice(1, -1); // remove { and }
-      const [prefix, word] = tagContent.split(":").map((s) => s.trim());
+      const [prefix, primaryLabel] = tagContent.split(":").map((s) => s.trim());
 
-      // Regex: \{prefix:\s*word\}
-      const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // Regex: \{prefix:\s*primaryLabel\}
+      const escapedWord = primaryLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const pattern = `\\{${prefix}:\\s*${escapedWord}\\}`;
       const regex = new RegExp(pattern, "gi");
 
-      const replacement = word; // Just the word
+      const replacement = primaryLabel; // Just the primaryLabel
 
-      const updatedItem = new database.Item(item);
+      const updatedItem = new database.Entity(item);
       let changed = false;
 
-      if (updatedItem.definition) {
-        const newVal = updatedItem.definition.replace(regex, replacement);
-        if (newVal !== updatedItem.definition) {
-          updatedItem.definition = newVal;
+      if (updatedItem.description) {
+        const newVal = updatedItem.description.replace(regex, replacement);
+        if (newVal !== updatedItem.description) {
+          updatedItem.description = newVal;
           changed = true;
         }
       }
-      if (updatedItem.derivation) {
-        const newVal = updatedItem.derivation.replace(regex, replacement);
-        if (newVal !== updatedItem.derivation) {
-          updatedItem.derivation = newVal;
+      if (updatedItem.attributes?.derivation) {
+        const newVal = updatedItem.attributes.derivation.replace(
+          regex,
+          replacement,
+        );
+        if (newVal !== updatedItem.attributes.derivation) {
+          updatedItem.attributes.derivation = newVal;
           changed = true;
         }
       }
-      if (updatedItem.appendicies) {
-        const newVal = updatedItem.appendicies.replace(regex, replacement);
-        if (newVal !== updatedItem.appendicies) {
-          updatedItem.appendicies = newVal;
+      if (updatedItem.attributes?.appendicies) {
+        const newVal = updatedItem.attributes.appendicies.replace(
+          regex,
+          replacement,
+        );
+        if (newVal !== updatedItem.attributes.appendicies) {
+          updatedItem.attributes.appendicies = newVal;
           changed = true;
         }
       }
 
       if (changed) {
-        await UpdateItem(updatedItem);
+        await UpdateEntity(updatedItem);
         queryClient.invalidateQueries({ queryKey: ["selfReferentialItems"] });
         notifications.show({
           title: "Fixed",
-          message: `Removed self-reference in ${item.word}`,
+          message: `Removed self-reference in ${item.primaryLabel}`,
           color: "green",
         });
       } else {
         notifications.show({
           title: "No changes",
-          message: `Could not find the tag to replace in ${item.word}`,
+          message: `Could not find the tag to replace in ${item.primaryLabel}`,
           color: "yellow",
         });
       }
@@ -146,18 +152,18 @@ export function SelfReferentialReport() {
             </Table.Thead>
             <Table.Tbody>
               {selfRefs.map((item) => (
-                <Table.Tr key={item.itemId}>
+                <Table.Tr key={item.id}>
                   <Table.Td>
                     <Anchor
                       component={Link}
-                      to={`/item/${item.itemId}?tab=detail`}
+                      to={`/item/${item.id}?tab=detail`}
                       fw={600}
                     >
-                      {item.word}
+                      {item.primaryLabel}
                     </Anchor>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm">{item.type}</Badge>
+                    <Badge size="sm">{item.typeSlug}</Badge>
                   </Table.Td>
                   <Table.Td>
                     <Badge
@@ -173,7 +179,7 @@ export function SelfReferentialReport() {
                       size="xs"
                       variant="light"
                       color="blue"
-                      loading={fixingItem === item.itemId}
+                      loading={fixingItem === item.id}
                       onClick={() => handleFix(item)}
                     >
                       Fix

@@ -14,11 +14,11 @@ import {
   Box,
 } from "@mantine/core";
 import {
-  SearchItemsWithOptions,
-  UpdateItem,
   GetSettings,
   UpdateSettings,
-  DeleteItem,
+  SearchEntities,
+  UpdateEntity,
+  DeleteEntity,
 } from "@wailsjs/go/main/App";
 import { LogInfo, LogError } from "@wailsjs/runtime/runtime";
 import { database } from "@wailsjs/go/models";
@@ -44,9 +44,9 @@ export function ItemManagerTool() {
   const [newTitle, setNewTitle] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [affectedItems, setAffectedItems] = useState<database.Item[]>([]);
-  const [titleItem, setTitleItem] = useState<database.Item | null>(null);
-  const [_, setTargetItem] = useState<database.Item | null>(null);
+  const [affectedItems, setAffectedItems] = useState<database.Entity[]>([]);
+  const [titleItem, setTitleItem] = useState<database.Entity | null>(null);
+  const [_, setTargetItem] = useState<database.Entity | null>(null);
   const [isMerge, setIsMerge] = useState(false);
   const [executed, setExecuted] = useState(false);
   const [__, setExecutedCount] = useState(0);
@@ -106,49 +106,70 @@ export function ItemManagerTool() {
 
     try {
       // 1. Search for the Source item itself
-      const escapedOldTitle = oldTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const titleSearchOpts = new database.SearchOptions({
-        query: `^${escapedOldTitle}$`,
-        types: [oldType],
-        useRegex: true,
-        caseSensitive: true,
-        hasImage: false,
-        hasTts: false,
-        source: "",
-      });
+      const titleResults = await SearchEntities(
+        oldTitle,
+        oldType.toLowerCase(),
+      );
 
-      const titleResults = await SearchItemsWithOptions(titleSearchOpts);
+      let exactMatch: database.Entity | undefined;
+      let currentOldType = oldType;
+
       if (titleResults && titleResults.length > 0) {
-        // Pick the exact match if multiple (though regex ^$ should ensure exact)
-        const exact = titleResults.find(
-          (i) => i.word === oldTitle && i.type === oldType,
+        // Pick the exact match
+        exactMatch = titleResults.find(
+          (i) =>
+            i.primaryLabel === oldTitle && i.typeSlug === oldType.toLowerCase(),
         );
-        if (exact) setTitleItem(exact);
+      }
+
+      if (exactMatch) {
+        setTitleItem(exactMatch);
       } else {
-        // Warn if source item not found
-        notifications.show({
-          title: "Item Not Found",
-          message: `Could not find item "${oldTitle}" of type "${oldType}".`,
-          color: "orange",
-        });
+        // Fallback: Search without type constraint to see if it exists as another type
+        const anyTypeResults = await SearchEntities(oldTitle, "");
+        const exactAnyType = anyTypeResults?.find(
+          (i) => i.primaryLabel === oldTitle,
+        );
+
+        if (exactAnyType) {
+          // Auto-correct the type
+          const foundSlug = exactAnyType.typeSlug;
+          const matchedType = ITEM_TYPES.find(
+            (t) => t.toLowerCase() === foundSlug.toLowerCase(),
+          );
+          const correctType =
+            matchedType ||
+            foundSlug.charAt(0).toUpperCase() + foundSlug.slice(1);
+
+          setOldType(correctType);
+          currentOldType = correctType;
+          setTitleItem(exactAnyType);
+
+          notifications.show({
+            title: "Type Auto-Corrected",
+            message: `Found "${oldTitle}" as "${correctType}". Switched type automatically.`,
+            color: "blue",
+            autoClose: 3000,
+          });
+        } else {
+          notifications.show({
+            title: "Item Not Found",
+            message: `Could not find exact match for "${oldTitle}". Please check the spelling.`,
+            color: "red",
+          });
+          return;
+        }
       }
 
       // 2. Search for the Target item (to check for merge)
-      const escapedNewTitle = newTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const targetSearchOpts = new database.SearchOptions({
-        query: `^${escapedNewTitle}$`,
-        types: [newType],
-        useRegex: true,
-        caseSensitive: true,
-        hasImage: false,
-        hasTts: false,
-        source: "",
-      });
-
-      const targetResults = await SearchItemsWithOptions(targetSearchOpts);
+      const targetResults = await SearchEntities(
+        newTitle,
+        newType.toLowerCase(),
+      );
       if (targetResults && targetResults.length > 0) {
         const exactTarget = targetResults.find(
-          (i) => i.word === newTitle && i.type === newType,
+          (i) =>
+            i.primaryLabel === newTitle && i.typeSlug === newType.toLowerCase(),
         );
         if (exactTarget) {
           setTargetItem(exactTarget);
@@ -168,20 +189,20 @@ export function ItemManagerTool() {
         if (t === "Writer") return "writer";
         return "word";
       };
-      const tagPrefix = getTagPrefix(oldType);
-      const refQuery = `\\{${tagPrefix}:\\s*${escapedOldTitle}\\}`;
+      const tagPrefix = getTagPrefix(currentOldType);
+      const escapedOldTitle = oldTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const refRegex = new RegExp(
+        `\\{${tagPrefix}:\\s*${escapedOldTitle}\\}`,
+        "i",
+      );
 
-      const refSearchOpts = new database.SearchOptions({
-        query: refQuery,
-        types: [], // All types
-        useRegex: true,
-        caseSensitive: true,
-        hasImage: false,
-        hasTts: false,
-        source: "",
-      });
+      // Search for entities containing the title (broad search)
+      const potentialRefs = await SearchEntities(oldTitle, "");
 
-      const refResults = await SearchItemsWithOptions(refSearchOpts);
+      // Filter by regex in description
+      const refResults = potentialRefs.filter(
+        (e) => e.description && refRegex.test(e.description),
+      );
       if (refResults) {
         setAffectedItems(refResults);
       }
@@ -226,34 +247,38 @@ export function ItemManagerTool() {
       if (titleItem) {
         if (isMerge) {
           // Merge: Delete the old item
-          LogInfo(`Merging: Deleting old item ${titleItem.word}`);
-          await DeleteItem(titleItem.itemId);
+          LogInfo(`Merging: Deleting old item ${titleItem.primaryLabel}`);
+          await DeleteEntity(titleItem.id);
           successCount++;
         } else {
           // Rename: Update the old item
-          LogInfo(`Updating Source item: ${titleItem.word} -> ${newTitle}`);
-          const updatedTitleItem = new database.Item({ ...titleItem });
-          updatedTitleItem.word = newTitle;
-          updatedTitleItem.type = newType;
+          LogInfo(
+            `Updating Source item: ${titleItem.primaryLabel} -> ${newTitle}`,
+          );
+          const updatedTitleItem = new database.Entity({ ...titleItem });
+          updatedTitleItem.primaryLabel = newTitle;
+          updatedTitleItem.typeSlug = newType.toLowerCase();
 
           // Also update references inside the item itself
-          if (updatedTitleItem.definition)
-            updatedTitleItem.definition = updatedTitleItem.definition.replace(
+          if (updatedTitleItem.description)
+            updatedTitleItem.description = updatedTitleItem.description.replace(
               regex,
               replacement,
             );
-          if (updatedTitleItem.derivation)
-            updatedTitleItem.derivation = updatedTitleItem.derivation.replace(
-              regex,
-              replacement,
-            );
-          if (updatedTitleItem.appendicies)
-            updatedTitleItem.appendicies = updatedTitleItem.appendicies.replace(
-              regex,
-              replacement,
-            );
+          if (updatedTitleItem.attributes?.derivation)
+            updatedTitleItem.attributes.derivation =
+              updatedTitleItem.attributes.derivation.replace(
+                regex,
+                replacement,
+              );
+          if (updatedTitleItem.attributes?.appendicies)
+            updatedTitleItem.attributes.appendicies =
+              updatedTitleItem.attributes.appendicies.replace(
+                regex,
+                replacement,
+              );
 
-          await UpdateItem(updatedTitleItem);
+          await UpdateEntity(updatedTitleItem);
           successCount++;
         }
       }
@@ -261,36 +286,42 @@ export function ItemManagerTool() {
       // 2. Update all referencing items
       for (const item of affectedItems) {
         // Skip if it's the source item (already handled)
-        if (titleItem && item.itemId === titleItem.itemId) continue;
+        if (titleItem && item.id === titleItem.id) continue;
 
-        const updatedItem = new database.Item({ ...item });
+        const updatedItem = new database.Entity({ ...item });
         let changed = false;
 
-        if (updatedItem.definition) {
-          const newVal = updatedItem.definition.replace(regex, replacement);
-          if (newVal !== updatedItem.definition) {
-            updatedItem.definition = newVal;
+        if (updatedItem.description) {
+          const newVal = updatedItem.description.replace(regex, replacement);
+          if (newVal !== updatedItem.description) {
+            updatedItem.description = newVal;
             changed = true;
           }
         }
-        if (updatedItem.derivation) {
-          const newVal = updatedItem.derivation.replace(regex, replacement);
-          if (newVal !== updatedItem.derivation) {
-            updatedItem.derivation = newVal;
+        if (updatedItem.attributes?.derivation) {
+          const newVal = updatedItem.attributes.derivation.replace(
+            regex,
+            replacement,
+          );
+          if (newVal !== updatedItem.attributes.derivation) {
+            updatedItem.attributes.derivation = newVal;
             changed = true;
           }
         }
-        if (updatedItem.appendicies) {
-          const newVal = updatedItem.appendicies.replace(regex, replacement);
-          if (newVal !== updatedItem.appendicies) {
-            updatedItem.appendicies = newVal;
+        if (updatedItem.attributes?.appendicies) {
+          const newVal = updatedItem.attributes.appendicies.replace(
+            regex,
+            replacement,
+          );
+          if (newVal !== updatedItem.attributes.appendicies) {
+            updatedItem.attributes.appendicies = newVal;
             changed = true;
           }
         }
 
         if (changed) {
-          LogInfo(`Updating reference in item: ${item.word}`);
-          await UpdateItem(updatedItem);
+          LogInfo(`Updating reference in item: ${item.primaryLabel}`);
+          await UpdateEntity(updatedItem);
           successCount++;
         }
       }
@@ -429,7 +460,7 @@ export function ItemManagerTool() {
                 <Group>
                   <Badge>Source</Badge>
                   <Text size="sm">
-                    {titleItem.word} ({titleItem.type})
+                    {titleItem.primaryLabel} ({titleItem.typeSlug})
                   </Text>
                   <ArrowRight size={16} />
                   <Text size="sm">
@@ -443,17 +474,17 @@ export function ItemManagerTool() {
             <Box style={{ maxHeight: 300, overflowY: "auto" }}>
               <Stack gap={4}>
                 {affectedItems.map((item) => (
-                  <Paper key={item.itemId} p="xs" withBorder>
+                  <Paper key={item.id} p="xs" withBorder>
                     <Group justify="space-between">
                       <Text size="sm" fw={500}>
-                        {item.word}
+                        {item.primaryLabel}
                       </Text>
                       <Badge size="sm" variant="outline">
-                        {item.type}
+                        {item.typeSlug}
                       </Badge>
                     </Group>
                     <Text size="xs" c="dimmed" lineClamp={1}>
-                      {item.definition}
+                      {item.description}
                     </Text>
                   </Paper>
                 ))}

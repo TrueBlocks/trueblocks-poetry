@@ -11,7 +11,10 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useState } from "react";
-import { GetDanglingLinks, DeleteLink } from "@wailsjs/go/main/App";
+import {
+  GetDanglingRelationships,
+  DeleteRelationship,
+} from "@wailsjs/go/main/App";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { DanglingLinkResult } from "./types";
@@ -23,18 +26,22 @@ export function DanglingLinksReport() {
   const { data: danglingLinks, isLoading } = useQuery({
     queryKey: ["danglingLinks"],
     queryFn: async () => {
-      const results = await GetDanglingLinks();
+      const results = await GetDanglingRelationships();
       return results as DanglingLinkResult[];
     },
   });
 
-  const handleDeleteLink = async (linkId: number, sourceWord: string) => {
+  const handleDeleteRelationship = async (
+    sourceId: number,
+    targetId: number,
+    relationshipId: number,
+  ) => {
     LogInfo(
-      `[DanglingLinksReport] Deleting link: linkId=${linkId}, sourceWord=${sourceWord}`,
+      `[DanglingLinksReport] Deleting link: sourceId=${sourceId}, targetId=${targetId}`,
     );
-    setDeletingIds((prev) => new Set(prev).add(linkId));
+    setDeletingIds((prev) => new Set(prev).add(relationshipId));
     try {
-      await DeleteLink(linkId);
+      await DeleteRelationship(relationshipId);
       LogInfo("[DanglingLinksReport] Link deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["danglingLinks"] });
     } catch (error) {
@@ -48,7 +55,7 @@ export function DanglingLinksReport() {
     } finally {
       setDeletingIds((prev) => {
         const next = new Set(prev);
-        next.delete(linkId);
+        next.delete(relationshipId);
         return next;
       });
     }
@@ -99,25 +106,25 @@ export function DanglingLinksReport() {
             </Table.Thead>
             <Table.Tbody>
               {danglingLinks.map((link) => (
-                <Table.Tr key={link.linkId}>
-                  <Table.Td>{link.linkId}</Table.Td>
+                <Table.Tr key={link.relationshipId}>
+                  <Table.Td>{link.relationshipId}</Table.Td>
                   <Table.Td>
                     {link.missingSide === "destination" ? (
                       <Anchor
                         component={Link}
-                        to={`/item/${link.sourceItemId}?tab=detail`}
+                        to={`/item/${link.sourceId}?tab=detail`}
                         fw={600}
                       >
-                        {link.sourceWord}
+                        {link.sourceLabel}
                       </Anchor>
                     ) : (
                       <Text c="dimmed" fs="italic">
-                        Missing Source ({link.sourceItemId})
+                        Missing Source ({link.sourceId})
                       </Text>
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm">{link.linkType}</Badge>
+                    <Badge size="sm">{link.label}</Badge>
                   </Table.Td>
                   <Table.Td>
                     <Badge color="red" variant="light">
@@ -130,9 +137,13 @@ export function DanglingLinksReport() {
                       color="red"
                       variant="light"
                       leftSection={<Trash2 size={14} />}
-                      loading={deletingIds.has(link.linkId)}
+                      loading={deletingIds.has(link.relationshipId)}
                       onClick={() =>
-                        handleDeleteLink(link.linkId, link.sourceWord)
+                        handleDeleteRelationship(
+                          link.sourceId,
+                          link.targetId,
+                          link.relationshipId,
+                        )
                       }
                     >
                       Delete Link

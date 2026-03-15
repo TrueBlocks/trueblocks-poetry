@@ -5,14 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	"github.com/TrueBlocks/trueblocks-poetry/backend/components"
 	"github.com/TrueBlocks/trueblocks-poetry/backend/database"
-	"github.com/TrueBlocks/trueblocks-poetry/backend/seeding"
 	"github.com/TrueBlocks/trueblocks-poetry/backend/services"
 	"github.com/TrueBlocks/trueblocks-poetry/backend/settings"
-	"github.com/TrueBlocks/trueblocks-poetry/pkg/constants"
 	"github.com/TrueBlocks/trueblocks-poetry/pkg/parser"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -20,18 +17,14 @@ import (
 
 // App struct
 type App struct {
-	ctx          context.Context
-	db           *database.DB
-	settings     *settings.Manager
-	adhoc        *components.AdHocQueryComponent
-	ttsService   *services.TTSService
-	imageService *services.ImageService
-	itemService  *services.ItemService
+	ctx           context.Context
+	db            *database.DB
+	settings      *settings.Manager
+	adhoc         *components.AdHocQueryComponent
+	ttsService    *services.TTSService
+	imageService  *services.ImageService
+	entityService *services.EntityService
 }
-
-// LinkOrTagResult is the return type for CreateLinkOrRemoveTags
-// Deprecated: Use services.LinkOrTagResult instead
-type LinkOrTagResult = services.LinkOrTagResult
 
 // TTSResult is the return type for SpeakWord
 // Deprecated: Use services.TTSResult instead
@@ -47,59 +40,19 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// Initialize settings first so we can get the dataFolder
-	settingsMgr, err := settings.NewManager()
-	if err != nil {
-		slog.Error("Failed to initialize settings", "error", err)
-		os.Exit(1)
-	}
-	a.settings = settingsMgr
-
 	// Set window position from saved settings
-	savedSettings := a.settings.Get()
-	runtime.WindowSetPosition(ctx, savedSettings.Window.X, savedSettings.Window.Y)
-	slog.Info("Set window position", "x", savedSettings.Window.X, "y", savedSettings.Window.Y)
+	// Settings are initialized in main.go
+	if a.settings != nil {
+		savedSettings := a.settings.Get()
+		runtime.WindowSetPosition(ctx, savedSettings.Window.X, savedSettings.Window.Y)
+		slog.Info("Set window position", "x", savedSettings.Window.X, "y", savedSettings.Window.Y)
+	}
 
 	// Show window after positioning
 	runtime.WindowShow(ctx)
 
-	// Determine database path from constants
-	dbPath, err := constants.GetDatabasePath()
-	if err != nil {
-		slog.Error("Failed to get database path", "error", err)
-		os.Exit(1)
-	}
-
-	slog.Info("Database path", "path", dbPath)
-
-	// Ensure data is seeded before opening database
-	if err := seeding.EnsureDataSeeded(filepath.Dir(dbPath)); err != nil {
-		slog.Warn("Failed to seed data", "error", err)
-	}
-
-	// Initialize database
-	db, err := database.NewDB(dbPath)
-	if err != nil {
-		slog.Error("Failed to initialize database", "error", err)
-		os.Exit(1)
-	}
-	a.db = db
-	a.adhoc = components.NewAdHocQueryComponent(db)
-	a.ttsService = services.NewTTSService(db)
-	a.imageService = services.NewImageService(db)
-	a.itemService = services.NewItemService(db, a.imageService)
-
-	// Run one-time data migrations
-	if err := a.runMigration1(); err != nil {
-		slog.Warn("Migration 1 failed", "error", err)
-	}
-
-	if err := a.runMigration4(); err != nil {
-		slog.Warn("Migration 4 failed", "error", err)
-	}
-
 	// Sync file flags on startup (runMigration4 already does this once)
-	if err := db.SyncFileFlags(); err != nil {
+	if err := a.db.SyncFileFlags(); err != nil {
 		slog.Warn("Failed to sync file flags", "error", err)
 	}
 }
@@ -148,19 +101,19 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 }
 
-// SaveItemImage saves an image for an item to the cache
-func (a *App) SaveItemImage(itemId int, imageData string) error {
-	return a.imageService.SaveItemImage(itemId, imageData)
+// SaveEntityImage saves an image for an entity to the cache
+func (a *App) SaveEntityImage(entityId int, imageData string) error {
+	return a.imageService.SaveEntityImage(entityId, imageData)
 }
 
-// GetItemImage retrieves an image for an item from the cache
-func (a *App) GetItemImage(itemId int) (string, error) {
-	return a.imageService.GetItemImage(itemId)
+// GetEntityImage retrieves an image for an entity from the cache
+func (a *App) GetEntityImage(entityId int) (string, error) {
+	return a.imageService.GetEntityImage(entityId)
 }
 
-// DeleteItemImage removes an image for an item from the cache
-func (a *App) DeleteItemImage(itemId int) error {
-	return a.imageService.DeleteItemImage(itemId)
+// DeleteEntityImage removes an image for an entity from the cache
+func (a *App) DeleteEntityImage(entityId int) error {
+	return a.imageService.DeleteEntityImage(entityId)
 }
 
 // Greet returns a greeting for the given name

@@ -1,3 +1,1 @@
-SELECT item_id
-FROM items
-WHERE type = 'Writer'
+SELECT id FROM entities WHERE type_slug = 'writer';

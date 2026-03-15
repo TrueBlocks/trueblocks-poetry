@@ -44,8 +44,8 @@ type Segment struct {
 }
 
 // ReferenceTagPattern is the regex pattern for matching valid reference tags
-// Matches: {type: value} where type is word, writer, or title
-const ReferenceTagPattern = `\{(word|writer|title):\s*([^}]+)\}`
+// Matches: {type: value} where type is any alphanumeric string (e.g. word, writer, title, painter)
+const ReferenceTagPattern = `\{([a-zA-Z0-9_]+):\s*([^}]+)\}`
 
 // GenericTagPattern matches any tag-like structure {key: value}
 const GenericTagPattern = `\{([a-zA-Z0-9_]+):\s*([^}]+)\}`
@@ -123,8 +123,8 @@ func GetSpecificReferenceRegex(tagType, value string) (*regexp.Regexp, error) {
 // Matches: {type: word} or {type: word's} etc.
 func GetPossessiveReferenceRegex(word string) (*regexp.Regexp, error) {
 	escapedWord := regexp.QuoteMeta(word)
-	// Matches {word|writer|title: word('s|s'|...)?}
-	pattern := fmt.Sprintf(`(?i)\{(?:word|writer|title):\s*(%s(?:'s|'s|s'|s')?)\}`, escapedWord)
+	// Matches {type: word('s|s'|...)?}
+	pattern := fmt.Sprintf(`(?i)\{[a-zA-Z0-9_]+:\s*(%s(?:'s|'s|s'|s')?)\}`, escapedWord)
 	return regexp.Compile(pattern)
 }
 

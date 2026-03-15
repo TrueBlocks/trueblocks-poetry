@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Group, Text } from "@mantine/core";
-import { GetSettings, GetItem } from "@wailsjs/go/main/App.js";
+import { GetSettings, GetEntity } from "@wailsjs/go/main/App.js";
 
 export default function Footer() {
   const { data: settings } = useQuery({
@@ -11,13 +11,13 @@ export default function Footer() {
 
   const { data: currentItem } = useQuery({
     queryKey: ["currentItem", settings?.lastWordId],
-    queryFn: () => GetItem(settings!.lastWordId),
+    queryFn: () => GetEntity(settings!.lastWordId),
     enabled: !!settings?.lastWordId && settings.lastWordId > 0,
   });
 
   let currentItemDisplay = "None - Select an item";
-  if (currentItem?.word) {
-    currentItemDisplay = currentItem.word;
+  if (currentItem?.primaryLabel) {
+    currentItemDisplay = currentItem.primaryLabel;
   }
 
   const currentSearch = settings?.currentSearch || "";
@@ -38,7 +38,7 @@ export default function Footer() {
       </Text>
       <Group gap="xl">
         {currentSearch && <Text size="xs">Search: {currentSearch}</Text>}
-        <Text size="xs" c={currentItem?.word ? undefined : "dimmed"}>
+        <Text size="xs" c={currentItem?.primaryLabel ? undefined : "dimmed"}>
           Current: {currentItemDisplay}
         </Text>
       </Group>

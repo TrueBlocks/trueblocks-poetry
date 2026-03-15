@@ -12,9 +12,9 @@ import { SelfReferentialReport } from "./SelfReferentialReport";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  GetDuplicateItems,
-  GetOrphanedItems,
-  GetSelfReferentialItems,
+  GetDuplicateEntities,
+  GetOrphanedEntities,
+  GetSelfReferentialEntities,
   GetSettings,
   SaveReportItemHealthCollapsed,
   SaveTabSelection,
@@ -42,7 +42,7 @@ export function ItemHealthReport() {
   const { data: duplicates } = useQuery({
     queryKey: ["duplicateItems"],
     queryFn: async () => {
-      const res = await GetDuplicateItems();
+      const res = await GetDuplicateEntities();
       return res || [];
     },
   });
@@ -50,7 +50,7 @@ export function ItemHealthReport() {
   const { data: orphans } = useQuery({
     queryKey: ["orphanedItems"],
     queryFn: async () => {
-      const res = await GetOrphanedItems();
+      const res = await GetOrphanedEntities();
       return res || [];
     },
   });
@@ -58,7 +58,7 @@ export function ItemHealthReport() {
   const { data: selfRefs } = useQuery({
     queryKey: ["selfReferentialItems"],
     queryFn: async () => {
-      const res = await GetSelfReferentialItems();
+      const res = await GetSelfReferentialEntities();
       return res || [];
     },
   });

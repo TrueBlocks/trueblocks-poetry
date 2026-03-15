@@ -12,12 +12,12 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 import { Network, ArrowRight, CheckSquare } from "lucide-react";
 import { database } from "@wailsjs/go/models";
-import { ToggleItemMark } from "@wailsjs/go/main/App";
+import { ToggleEntityMark } from "@wailsjs/go/main/App";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogError } from "@utils/logger";
 
 interface HubsListProps {
-  hubs: database.HubItem[] | null;
+  hubs: database.Entity[] | null;
   onToggle?: () => void;
 }
 
@@ -33,7 +33,7 @@ export function HubsList({ hubs, onToggle }: HubsListProps) {
   ) => {
     const newMark = !currentMark;
     try {
-      await ToggleItemMark(itemId, newMark);
+      await ToggleEntityMark(itemId, newMark);
       queryClient.invalidateQueries({ queryKey: ["topHubs"] });
       queryClient.invalidateQueries({ queryKey: ["markedItems"] });
     } catch (error) {
@@ -70,22 +70,22 @@ export function HubsList({ hubs, onToggle }: HubsListProps) {
           </Table.Thead>
           <Table.Tbody>
             {hubs.map((hub) => (
-              <Table.Tr key={hub.itemId}>
+              <Table.Tr key={hub.id}>
                 <Table.Td>
                   <Checkbox
-                    checked={!!hub.mark}
+                    checked={!!hub.attributes?.mark}
                     onChange={() =>
-                      handleMarkToggle(hub.itemId, hub.mark || null)
+                      handleMarkToggle(hub.id, hub.attributes?.mark || null)
                     }
                     size="xs"
                   />
                 </Table.Td>
-                <Table.Td fw={500}>{hub.word}</Table.Td>
-                <Table.Td>{hub.linkCount}</Table.Td>
+                <Table.Td fw={500}>{hub.primaryLabel}</Table.Td>
+                <Table.Td>{hub.attributes?.linkCount}</Table.Td>
                 <Table.Td>
                   <Button
                     component={RouterLink}
-                    to={`/item/${hub.itemId}`}
+                    to={`/item/${hub.id}`}
                     variant="subtle"
                     size="xs"
                     rightSection={<ArrowRight size={14} />}

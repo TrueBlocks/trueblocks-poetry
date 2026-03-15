@@ -66,12 +66,3 @@ export function parseReferences(text: string | null | undefined): string[] {
   }
   return refs;
 }
-
-/**
- * Color mapping for reference types (Mantine color names)
- */
-export const REFERENCE_COLOR_MAP: Record<string, string> = {
-  word: "blue", // Reference
-  writer: "red", // Writer
-  title: "green", // Title
-};

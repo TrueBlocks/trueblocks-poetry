@@ -19,18 +19,19 @@ import {
   Box,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { SpeakWord } from "@wailsjs/go/services/TTSService";
+import { GetEntityImage } from "@wailsjs/go/services/ImageService";
 import {
-  GetItem,
-  GetItemLinks,
-  DeleteItem,
-  SearchItems,
-  UpdateItem,
-  SpeakWord,
-  GetItemByWord,
-  DeleteLinkByItems,
-  CreateLinkOrRemoveTags,
-  GetItemImage,
-} from "@wailsjs/go/main/App.js";
+  GetEntity,
+  GetRelationshipsWithDetails,
+  DeleteEntity,
+  SearchEntities,
+  UpdateEntity,
+  CreateRelationship,
+  DeleteRelationship,
+  GetAllEntities,
+} from "@wailsjs/go/services/EntityService";
+import * as parser from "@/types/parser";
 import { LogInfo, LogError, BrowserOpenURL } from "@wailsjs/runtime/runtime.js";
 import { database } from "@models";
 import {
@@ -48,15 +49,13 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { getItemColor } from "@utils/colors";
-import { parseReferences } from "@utils/references";
+import { getEntityColor } from "@utils/colors";
+import { stripPossessive } from "@utils/references";
+import { parseReferenceTags } from "@utils/tagParser";
 import { DefinitionRenderer } from "@components/ItemDetail/DefinitionRenderer";
 import { useUIStore } from "@stores/useUIStore";
 import { useAudioPlayer } from "@hooks/useAudioPlayer";
-import { useCapabilities } from "@hooks/useItemData";
-
-// Alias for backward compatibility
-const parseDefinitionReferences = parseReferences;
+import { useCapabilities } from "@hooks/useEntityData";
 
 export default function ItemDetail({
   onEnterEditMode,
@@ -82,7 +81,7 @@ export default function ItemDetail({
   const [missingDefinitionModalOpen, setMissingDefinitionModalOpen] =
     useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
-  const [itemImage, setItemImage] = useState<string | null>(null);
+  const [entityImage, setItemImage] = useState<string | null>(null);
 
   // Use audio player hook
   const { currentAudioRef, stopAudio } = useAudioPlayer();
@@ -116,9 +115,9 @@ export default function ItemDetail({
 
   // Note: SaveLastWord is now handled by ItemPage parent component
 
-  const { data: item, isLoading } = useQuery({
-    queryKey: ["item", id],
-    queryFn: () => GetItem(Number(id)),
+  const { data: entity, isLoading } = useQuery({
+    queryKey: ["entity", id],
+    queryFn: () => GetEntity(Number(id)),
   });
 
   const { data: capabilities } = useCapabilities();
@@ -132,7 +131,7 @@ export default function ItemDetail({
       // cmd+r or ctrl+r to reload
       if ((e.metaKey || e.ctrlKey) && e.key === "r") {
         e.preventDefault();
-        queryClient.invalidateQueries({ queryKey: ["item", id] });
+        queryClient.invalidateQueries({ queryKey: ["entity", id] });
         queryClient.invalidateQueries({ queryKey: ["links", id] });
         notifications.show({
           title: "Reloaded",
@@ -152,11 +151,11 @@ export default function ItemDetail({
       // cmd+s or ctrl+s to save/normalize item
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        if (item) {
+        if (entity) {
           try {
-            await UpdateItem(item);
-            // Invalidate and refetch to show normalized definition
-            queryClient.invalidateQueries({ queryKey: ["item", id] });
+            await UpdateEntity(entity);
+            // Invalidate and refetch to show normalized description
+            queryClient.invalidateQueries({ queryKey: ["entity", id] });
             notifications.show({
               title: "Item Normalized",
               message: "References have been normalized",
@@ -177,28 +176,28 @@ export default function ItemDetail({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [item, id, queryClient, navigate, onEnterEditMode, stopAudio]);
+  }, [entity, id, queryClient, navigate, onEnterEditMode, stopAudio]);
 
   const { data: links } = useQuery({
     queryKey: ["links", id],
-    queryFn: () => GetItemLinks(Number(id)),
+    queryFn: () => GetRelationshipsWithDetails(Number(id)),
     enabled: !!id,
   });
 
   // Log delete button state for debugging
   useEffect(() => {
-    if (links && item) {
+    if (links && entity) {
       // const _incomingLinks = links.filter(
-      //   (l) => l.destinationItemId === Number(id),
+      //   (l) => l.targetId === Number(id),
       // );
       // LogInfo(
-      //   `[ItemDetail] Delete button state - Item: ${item.word}, Incoming links: ${_incomingLinks.length}, Disabled: ${_incomingLinks.length > 0}`,
+      //   `[ItemDetail] Delete button state - Item: ${entity.primaryLabel}, Incoming links: ${_incomingLinks.length}, Disabled: ${_incomingLinks.length > 0}`,
       // );
     }
-  }, [links, item, id]);
+  }, [links, entity, id]);
 
   const deleteMutation = useMutation({
-    mutationFn: () => DeleteItem(Number(id)),
+    mutationFn: () => DeleteEntity(Number(id)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recentItems"] });
       notifications.show({
@@ -222,33 +221,25 @@ export default function ItemDetail({
   const { data: allItems } = useQuery({
     queryKey: ["allItemsForRefs"],
     queryFn: async () => {
-      // Search with empty string to get all items (backend will handle this)
-      return await SearchItems("");
+      return await GetAllEntities();
     },
   });
 
   // Fetch details for linked items
-  const linkedItemIds =
-    links
-      ?.map((link) =>
-        link.sourceItemId === Number(id)
-          ? link.destinationItemId
-          : link.sourceItemId,
-      )
-      .filter((itemId: number) => itemId !== Number(id)) || [];
+  const linkedItemIds = links?.map((link) => link.otherEntityId) || [];
 
-  const linkedItemsQueries = useQuery<Record<number, database.Item>>({
+  const linkedItemsQueries = useQuery<Record<number, database.Entity>>({
     queryKey: ["linkedItems", linkedItemIds],
     queryFn: async () => {
       const items = await Promise.all(
-        linkedItemIds.map((itemId: number) => GetItem(itemId)),
+        linkedItemIds.map((id: number) => GetEntity(id)),
       );
       return items.reduce(
-        (acc, item) => {
-          if (item) acc[item.itemId] = item;
+        (acc, e) => {
+          if (e) acc[e.id] = e;
           return acc;
         },
-        {} as Record<number, database.Item>,
+        {} as Record<number, database.Entity>,
       );
     },
     enabled: linkedItemIds.length > 0,
@@ -256,7 +247,7 @@ export default function ItemDetail({
 
   // Load item image when item changes (with fallback to Writer image for Titles)
   useEffect(() => {
-    if (!item?.itemId) {
+    if (!entity?.id) {
       setItemImage(null);
       return;
     }
@@ -266,39 +257,39 @@ export default function ItemDetail({
     const fetchImage = async () => {
       try {
         // 1. Try to get the item's own image
-        const ownImage = await GetItemImage(item.itemId);
+        const ownImage = await GetEntityImage(entity.id);
         if (ownImage) {
           if (isMounted) setItemImage(ownImage);
           return;
         }
 
         // 2. If no own image, and it's a Title, try to get Writer's image
-        if (item.type === "Title" && linkedItemsQueries.data) {
+        if (entity.typeSlug === "title" && linkedItemsQueries.data) {
           const linkedItems = Object.values(
-            linkedItemsQueries.data as Record<number, database.Item>,
+            linkedItemsQueries.data as Record<number, database.Entity>,
           );
 
           // Look for the writer mentioned in "Written by:" tag first
-          let writer: database.Item | undefined;
-          if (item.definition) {
-            const writtenByMatch = item.definition.match(
+          let writer: database.Entity | undefined;
+          if (entity.description) {
+            const writtenByMatch = entity.description.match(
               /Written by:\s*\{writer:\s*([^}]+)\}/i,
             );
             if (writtenByMatch) {
               const writerName = writtenByMatch[1].trim();
               writer = linkedItems.find(
-                (i) => i.type === "Writer" && i.word === writerName,
+                (i) => i.typeSlug === "writer" && i.primaryLabel === writerName,
               );
             }
           }
 
           // Fall back to any Writer if "Written by:" not found
           if (!writer) {
-            writer = linkedItems.find((i) => i.type === "Writer");
+            writer = linkedItems.find((i) => i.typeSlug === "writer");
           }
 
           if (writer) {
-            const writerImage = await GetItemImage(writer.itemId);
+            const writerImage = await GetEntityImage(writer.id);
             if (isMounted && writerImage) {
               setItemImage(writerImage);
               return;
@@ -318,34 +309,92 @@ export default function ItemDetail({
     return () => {
       isMounted = false;
     };
-  }, [item?.itemId, item?.type, item?.definition, linkedItemsQueries.data]);
+  }, [
+    entity?.id,
+    entity?.typeSlug,
+    entity?.description,
+    linkedItemsQueries.data,
+  ]);
 
   // Data quality checks
   const dataQuality = useMemo(() => {
-    if (!item || !links || !allItems) return null;
+    if (!entity || !links || !allItems) return null;
 
-    // Parse references from all text fields (definition, derivation, notes)
-    const defRefs = parseDefinitionReferences(item.definition);
-    const derivRefs = parseDefinitionReferences(item.derivation);
-    const notesRefs = parseDefinitionReferences(item.appendicies);
+    // Parse references from all text fields (description, derivation, notes)
+    // We now collect objects { word: string, type: string }
+    let allRefObjects: { word: string; type: string }[] = [];
 
-    // Combine all references and remove duplicates
-    const allRefs = [...new Set([...defRefs, ...derivRefs, ...notesRefs])];
+    const collectRefs = (text: string | undefined) => {
+      if (!text) return;
+      const tags = parseReferenceTags(text);
+      tags.forEach((tag) => {
+        if (tag.type === "reference" && tag.refWord && tag.refType) {
+          const word =
+            tag.refType === "writer"
+              ? stripPossessive(tag.refWord)
+              : tag.refWord;
+          allRefObjects.push({ word, type: tag.refType });
+        }
+      });
+    };
+
+    // 1. From parsedDefinition (if available)
+    if (
+      entity.attributes?.parsedDefinition &&
+      entity.attributes.parsedDefinition.length > 0
+    ) {
+      const extractRefsFromTokens = (tokens?: parser.Token[]) => {
+        if (!tokens) return;
+        tokens.forEach((t) => {
+          if (t.refType && t.refWord) {
+            const word =
+              t.refType === "writer" ? stripPossessive(t.refWord!) : t.refWord!;
+            allRefObjects.push({ word, type: t.refType });
+          }
+        });
+      };
+
+      (entity.attributes.parsedDefinition as parser.Segment[]).forEach(
+        (segment) => {
+          extractRefsFromTokens(segment.tokens);
+          extractRefsFromTokens(segment.preTokens);
+          extractRefsFromTokens(segment.postTokens);
+        },
+      );
+    } else {
+      // Fallback to raw description parsing
+      collectRefs(entity.description);
+    }
+
+    // 2. From other fields
+    collectRefs(entity.attributes.derivation);
+    collectRefs(entity.attributes.appendicies);
+
+    // Deduplicate based on word+type
+    const uniqueRefs = new Map<string, { word: string; type: string }>();
+    allRefObjects.forEach((ref) => {
+      uniqueRefs.set(
+        `${ref.word.toLowerCase()}|${ref.type.toLowerCase()}`,
+        ref,
+      );
+    });
+    allRefObjects = Array.from(uniqueRefs.values());
+
+    // Extract just the words for linking checks
+    const allRefsWords = allRefObjects.map((r) => r.word);
 
     // Get outgoing "to" links (where this item is the source)
-    const outgoingLinks = links.filter(
-      (link) => link.sourceItemId === Number(id),
-    );
+    const outgoingLinks = links.filter((link) => link.sourceId === Number(id));
     const linkedWords = outgoingLinks
       .map((link) => {
-        const linkedId = link.destinationItemId;
+        const linkedId = link.targetId;
         const linkedItem = linkedItemsQueries.data?.[linkedId];
-        return linkedItem?.word;
+        return linkedItem?.primaryLabel;
       })
       .filter(Boolean);
 
     // Find references in all fields that are NOT linked
-    const unlinkedRefs = allRefs.filter(
+    const unlinkedRefs = allRefsWords.filter(
       (ref) =>
         ref !== undefined &&
         !linkedWords.some(
@@ -355,38 +404,81 @@ export default function ItemDetail({
 
     // Find linked items that are NOT in any text field
     const extraLinks = linkedWords.filter(
-      (word) =>
-        word !== undefined &&
-        !allRefs.some(
+      (primaryLabel) =>
+        primaryLabel !== undefined &&
+        !allRefsWords.some(
           (ref) =>
-            ref !== undefined && ref.toLowerCase() === word.toLowerCase(),
+            ref !== undefined &&
+            ref.toLowerCase() === primaryLabel.toLowerCase(),
         ),
     );
 
-    // Check for missing definition with single incoming link
-    const incomingLinks = links.filter(
-      (link) => link.destinationItemId === Number(id),
-    );
+    // Check for missing description with single incoming link
+    const incomingLinks = links.filter((link) => link.targetId === Number(id));
     const hasMissingDefinition =
-      (!item.definition ||
-        item.definition.trim() === "" ||
-        item.definition.trim().toUpperCase() === "MISSING DATA") &&
+      (!entity.description ||
+        entity.description.trim() === "" ||
+        entity.description.trim().toUpperCase() === "MISSING DATA") &&
       incomingLinks.length === 1;
+
+    // Check for Type Mismatches
+    const typeMismatches: {
+      word: string;
+      expectedType: string;
+      actualType: string;
+    }[] = [];
+
+    allRefObjects.forEach((ref) => {
+      const matchedEntity = allItems.find(
+        (item) => item.primaryLabel.toLowerCase() === ref.word.toLowerCase(),
+      );
+
+      if (matchedEntity) {
+        // Normalize types for comparison
+        let expected = ref.type.toLowerCase();
+        // Legacy mappings
+        if (expected === "w") expected = "word"; // or reference?
+        if (expected === "p") expected = "person";
+        if (expected === "t") expected = "title";
+        if (expected === "word") expected = "reference"; // 'word' tag maps to 'reference' type usually
+
+        let actual = matchedEntity.typeSlug.toLowerCase();
+
+        // If types don't match
+        if (expected !== actual) {
+          // Allow 'word' tag to match anything? No, usually specific.
+          // But 'word' tag is often used for generic references.
+          // If tag is {word: X}, and X is a Title, is that an error?
+          // Usually we want {title: X}.
+
+          // Let's be strict for now, but maybe allow 'reference' to match 'word'
+          if (expected === "reference" && actual === "word") return; // ok
+
+          typeMismatches.push({
+            word: ref.word,
+            expectedType: expected,
+            actualType: actual,
+          });
+        }
+      }
+    });
 
     return {
       unlinkedRefs,
       extraLinks,
       hasMissingDefinition,
+      typeMismatches,
       hasIssues:
         unlinkedRefs.length > 0 ||
         extraLinks.length > 0 ||
-        hasMissingDefinition,
+        hasMissingDefinition ||
+        typeMismatches.length > 0,
     };
-  }, [item, links, allItems, linkedItemsQueries.data, id]);
+  }, [entity, links, allItems, linkedItemsQueries.data, id]);
 
   const handleDelete = () => {
     // LogInfo(
-    //   `[ItemDetail] handleDelete called for item ID: ${id}, word: ${item?.word}`,
+    //   `[ItemDetail] handleDelete called for item ID: ${id}, primaryLabel: ${entity?.primaryLabel}`,
     // );
     // LogInfo(
     //   `[ItemDetail] Deleting item immediately (no incoming links), calling deleteMutation.mutate()`,
@@ -395,20 +487,18 @@ export default function ItemDetail({
   };
 
   const handleDeleteIncomingLink = async () => {
-    if (!item || !links) return;
+    if (!entity || !links) return;
 
-    const incomingLinks = links.filter(
-      (link) => link.destinationItemId === Number(id),
-    );
+    const incomingLinks = links.filter((link) => link.targetId === Number(id));
     if (incomingLinks.length !== 1) return;
 
     const incomingLink = incomingLinks[0];
     // LogInfo(
-    //   `[ItemDetail] Deleting incoming link from ${incomingLink.sourceItemId} to ${id}`,
+    //   `[ItemDetail] Deleting incoming link from ${incomingLink.sourceId} to ${id}`,
     // );
 
     try {
-      await DeleteLinkByItems(incomingLink.sourceItemId, Number(id));
+      await DeleteRelationship(incomingLink.id);
       // LogInfo("[ItemDetail] Incoming link deleted successfully");
       // Refetch both item and links to reload the entire view
       queryClient.invalidateQueries({ queryKey: ["item", id] });
@@ -435,25 +525,24 @@ export default function ItemDetail({
       LogInfo(
         `[handleCreateLinkFromQuality] Calling with id: ${id}, refWord: ${refWord}`,
       );
-      const result = await CreateLinkOrRemoveTags(Number(id), refWord);
 
-      if (!result) {
-        LogInfo("[handleCreateLinkFromQuality] Result is null or undefined");
-        return;
-      }
-
-      LogInfo("[handleCreateLinkFromQuality] Got result from backend");
-      const { linkCreated, message } = result;
-      LogInfo(
-        `[handleCreateLinkFromQuality] linkCreated: ${linkCreated}, message: ${message}`,
+      const entities = await SearchEntities(refWord, "");
+      const target = entities.find(
+        (e) => e.primaryLabel.toLowerCase() === refWord.toLowerCase(),
       );
 
-      // Only show notification if something actually changed
-      if (message !== "No changes needed") {
+      if (target) {
+        await CreateRelationship(Number(id), target.id, "reference");
         notifications.show({
-          title: linkCreated ? "Link created" : "Reference tag removed",
-          message: message,
-          color: linkCreated ? "green" : "blue",
+          title: "Link created",
+          message: `Linked to ${target.primaryLabel}`,
+          color: "green",
+        });
+      } else {
+        notifications.show({
+          title: "Entity not found",
+          message: `Could not find entity: ${refWord}`,
+          color: "red",
         });
       }
 
@@ -479,7 +568,7 @@ export default function ItemDetail({
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "g") {
         e.preventDefault();
-        navigate(`/graph?itemId=${id}`);
+        navigate(`/graph?id=${id}`);
       }
     };
 
@@ -492,7 +581,7 @@ export default function ItemDetail({
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "g") {
         e.preventDefault();
-        navigate(`/graph?itemId=${id}`);
+        navigate(`/graph?id=${id}`);
       }
     };
 
@@ -503,7 +592,7 @@ export default function ItemDetail({
   const handleDeleteLinkFromQuality = async (refWord: string) => {
     setDeletingLinkFor(refWord);
     try {
-      // Strip possessive 's or s' from the ref word
+      // Strip possessive 's or s' from the ref primaryLabel
       let matchWord = refWord;
       if (refWord.endsWith("'s") || refWord.endsWith("'s")) {
         matchWord = refWord.slice(0, -2);
@@ -511,8 +600,12 @@ export default function ItemDetail({
         matchWord = refWord.slice(0, -1);
       }
 
-      // Look up the destination item by word
-      const destItem = await GetItemByWord(matchWord);
+      // Look up the destination item by primaryLabel
+      const entities = await SearchEntities(matchWord, "");
+      const destItem = entities.find(
+        (e) => e.primaryLabel.toLowerCase() === matchWord.toLowerCase(),
+      );
+
       if (!destItem) {
         notifications.show({
           title: "Item not found",
@@ -522,8 +615,22 @@ export default function ItemDetail({
         return;
       }
 
-      // Delete the link
-      await DeleteLinkByItems(Number(id), destItem.itemId);
+      // Find the link
+      const link = links?.find(
+        (l) => l.sourceId === Number(id) && l.targetId === destItem.id,
+      );
+
+      if (link) {
+        // Delete the link
+        await DeleteRelationship(link.id);
+      } else {
+        notifications.show({
+          title: "Link not found",
+          message: `Could not find link to ${destItem.primaryLabel}`,
+          color: "red",
+        });
+        return;
+      }
 
       // Refresh the data
       queryClient.invalidateQueries({ queryKey: ["item", id] });
@@ -531,7 +638,7 @@ export default function ItemDetail({
 
       notifications.show({
         title: "Link deleted",
-        message: `Removed link to ${destItem.word}`,
+        message: `Removed link to ${destItem.primaryLabel}`,
         color: "green",
       });
     } catch (error) {
@@ -556,7 +663,7 @@ export default function ItemDetail({
     );
   }
 
-  if (!item) {
+  if (!entity) {
     return (
       <Container size="lg">
         <Stack align="center" justify="center" style={{ height: "100vh" }}>
@@ -596,25 +703,25 @@ export default function ItemDetail({
               leftSection={<Sparkles size={18} />}
               onClick={() => {
                 let query = "";
-                const type = item?.type || "";
+                const type = entity?.typeSlug || "";
 
                 if (type === "Title") {
-                  // Check if definition contains "Written by:" followed by {writer:} tag
-                  const writtenByMatch = item?.definition?.match(
+                  // Check if description contains "Written by:" followed by {writer:} tag
+                  const writtenByMatch = entity?.description?.match(
                     /Written by:\s*\{writer:\s*([^}]+)\}/i,
                   );
                   if (writtenByMatch) {
                     const writer = writtenByMatch[1].trim();
-                    query = `"${item?.word || ""}" written by ${writer}`;
+                    query = `"${entity?.primaryLabel || ""}" written by ${writer}`;
                   } else {
-                    query = `"${item?.word || ""}"`;
+                    query = `"${entity?.primaryLabel || ""}"`;
                   }
                 } else if (type === "Writer") {
-                  query = `"${item?.word || ""}"`;
+                  query = `"${entity?.primaryLabel || ""}"`;
                 } else {
-                  query = item?.definition
-                    ? `${item.word} ${item.definition}`
-                    : item?.word || "";
+                  query = entity?.description
+                    ? `${entity.primaryLabel} ${entity.description}`
+                    : entity?.primaryLabel || "";
                 }
 
                 BrowserOpenURL(
@@ -644,13 +751,11 @@ export default function ItemDetail({
               loading={deleteMutation.isPending}
               disabled={
                 links &&
-                links.filter((l) => l.destinationItemId === Number(id)).length >
-                  0
+                links.filter((l) => l.targetId === Number(id)).length > 0
               }
               title={
                 links &&
-                links.filter((l) => l.destinationItemId === Number(id)).length >
-                  0
+                links.filter((l) => l.targetId === Number(id)).length > 0
                   ? "Cannot delete: item has incoming connections"
                   : "Delete this item"
               }
@@ -672,12 +777,12 @@ export default function ItemDetail({
           }}
         >
           <Grid gutter="xl">
-            <Grid.Col span={itemImage ? 8 : 12}>
+            <Grid.Col span={entityImage ? 8 : 12}>
               <Stack gap="xl">
                 <div>
                   <Group gap="sm" align="center">
                     <Title order={1} size="3rem" mb="sm">
-                      {item.word}
+                      {entity.primaryLabel}
                     </Title>
                     <ActionIcon
                       size="lg"
@@ -685,10 +790,10 @@ export default function ItemDetail({
                       color="gray"
                       title="Copy to clipboard"
                       onClick={() => {
-                        navigator.clipboard.writeText(item.word);
+                        navigator.clipboard.writeText(entity.primaryLabel);
                         notifications.show({
                           title: "Copied!",
-                          message: `"${item.word}" copied to clipboard`,
+                          message: `"${entity.primaryLabel}" copied to clipboard`,
                           color: "green",
                           icon: <Check size={16} />,
                         });
@@ -711,20 +816,20 @@ export default function ItemDetail({
                     <Badge
                       size="lg"
                       style={{
-                        backgroundColor: getItemColor(item.type),
+                        backgroundColor: getEntityColor(entity.typeSlug),
                         color: "#000",
                       }}
                     >
-                      {item.type}
+                      {entity.typeSlug}
                     </Badge>
-                    {item.type === "Reference" && (
+                    {entity.typeSlug === "reference" && (
                       <ActionIcon
                         size="lg"
                         variant="light"
                         color="blue"
                         title={
                           capabilities?.hasTts
-                            ? "Pronounce word"
+                            ? "Pronounce primaryLabel"
                             : "Configure OpenAI API Key in Settings to enable TTS"
                         }
                         disabled={!capabilities?.hasTts}
@@ -742,10 +847,10 @@ export default function ItemDetail({
                           });
                           try {
                             const result = await SpeakWord(
-                              item.word,
-                              item.type,
-                              item.word,
-                              item.itemId,
+                              entity.primaryLabel,
+                              entity.typeSlug,
+                              entity.primaryLabel,
+                              entity.id,
                             );
                             LogInfo(
                               `Received TTS result, cached: ${result.cached}, error: ${result.error || "none"}`,
@@ -855,9 +960,9 @@ export default function ItemDetail({
                         <Volume2 size={22} />
                       </ActionIcon>
                     )}
-                    {item.type === "Title" &&
-                      item.definition &&
-                      /\[\s*\n/.test(item.definition) && (
+                    {entity.typeSlug === "title" &&
+                      entity.description &&
+                      /\[\s*\n/.test(entity.description) && (
                         <ActionIcon
                           size="lg"
                           variant="light"
@@ -867,9 +972,10 @@ export default function ItemDetail({
                             // Stop any currently playing audio
                             stopAudio();
 
-                            // Extract quoted text from definition
+                            // Extract quoted text from description
                             const quoteRegex = /\[\s*\n([\s\S]*?)\n\s*\]/;
-                            const match = item?.definition?.match(quoteRegex);
+                            const match =
+                              entity?.description?.match(quoteRegex);
                             if (!match || !match[1]) {
                               notifications.show({
                                 title: "No Quote Found",
@@ -884,11 +990,12 @@ export default function ItemDetail({
                               .replace(/[\\\/]$/gm, "")
                               .trim();
 
-                            // Count words in entire poem
-                            const wordCount = quotedText.split(/\s+/).length;
+                            // Count primaryLabels in entire poem
+                            const primaryLabelCount =
+                              quotedText.split(/\s+/).length;
 
-                            // If entire poem is less than 500 words, read it all
-                            if (wordCount < 500) {
+                            // If entire poem is less than 500 primaryLabels, read it all
+                            if (primaryLabelCount < 500) {
                               // Keep full text, just limit to 4000 chars if needed
                               if (quotedText.length > 4000) {
                                 quotedText = quotedText.substring(0, 4000);
@@ -923,7 +1030,7 @@ export default function ItemDetail({
                             }
 
                             // Prepend the title
-                            const textToSpeak = `${item.word}. ${quotedText}`;
+                            const textToSpeak = `${entity.primaryLabel}. ${quotedText}`;
 
                             // Final safety check: ensure we don't exceed 4000 chars
                             const finalText =
@@ -943,9 +1050,9 @@ export default function ItemDetail({
                             try {
                               const result = await SpeakWord(
                                 finalText,
-                                item?.type || "",
-                                item?.word || "",
-                                item.itemId,
+                                entity?.typeSlug || "",
+                                entity?.primaryLabel || "",
+                                entity.id,
                               );
                               LogInfo(
                                 `Received quote TTS result, cached: ${result.cached}, error: ${result.error || "none"}`,
@@ -1061,87 +1168,91 @@ export default function ItemDetail({
                   </Group>
                 </div>
 
-                {item.definition && (
+                {entity.description && (
                   <div>
                     <Text style={{ whiteSpace: "pre-wrap" }}>
                       {revealMarkdown ? (
-                        item.definition
-                      ) : allItems && item.definition ? (
+                        entity.description
+                      ) : allItems && entity.description ? (
                         <DefinitionRenderer
-                          text={item.definition}
-                          allItems={allItems}
+                          text={entity.description}
+                          allEntities={allItems}
                           stopAudio={stopAudio}
                           currentAudioRef={currentAudioRef}
-                          item={item}
+                          entity={entity}
                         />
                       ) : (
-                        item.definition
+                        entity.description
                       )}
                     </Text>
                   </div>
                 )}
 
-                {item.derivation && (
+                {entity.attributes.derivation && (
                   <div>
                     <Title order={2} size="lg" mb="sm">
                       Etymology
                     </Title>
                     <Text style={{ whiteSpace: "pre-wrap" }}>
                       {revealMarkdown ? (
-                        item.derivation
-                      ) : allItems && item.derivation ? (
+                        entity.attributes.derivation
+                      ) : allItems && entity.attributes.derivation ? (
                         <DefinitionRenderer
-                          text={item.derivation}
-                          allItems={allItems}
+                          text={entity.attributes.derivation}
+                          allEntities={allItems}
                           stopAudio={stopAudio}
                           currentAudioRef={currentAudioRef}
-                          item={item}
+                          entity={entity}
                         />
                       ) : (
-                        item.derivation
+                        entity.attributes.derivation
                       )}
                     </Text>
                   </div>
                 )}
 
-                {item.appendicies && (
+                {entity.attributes.appendicies && (
                   <div>
                     <Title order={2} size="lg" mb="sm">
                       Notes
                     </Title>
                     <Text style={{ whiteSpace: "pre-wrap" }}>
                       {revealMarkdown ? (
-                        item.appendicies
-                      ) : allItems && item.appendicies ? (
+                        entity.attributes.appendicies
+                      ) : allItems && entity.attributes.appendicies ? (
                         <DefinitionRenderer
-                          text={item.appendicies}
-                          allItems={allItems}
+                          text={entity.attributes.appendicies}
+                          allEntities={allItems}
                           stopAudio={stopAudio}
                           currentAudioRef={currentAudioRef}
-                          item={item}
+                          entity={entity}
                         />
                       ) : (
-                        item.appendicies
+                        entity.attributes.appendicies
                       )}
                     </Text>
                   </div>
                 )}
 
-                {(item.source || item.sourcePg) && (
+                {(entity.attributes.source ||
+                  entity.attributes.source_pg ||
+                  entity.attributes.sourcePg) && (
                   <Paper p="md" withBorder>
                     <Text size="sm" fw={600} mb="xs">
                       Source
                     </Text>
                     <Text size="sm">
-                      {item.source}
-                      {item.sourcePg && `, p. ${item.sourcePg}`}
+                      {entity.attributes.source}
+                      {(entity.attributes.source_pg ||
+                        entity.attributes.sourcePg) &&
+                        `, p. ${entity.attributes.source_pg || entity.attributes.sourcePg}`}
                     </Text>
                   </Paper>
                 )}
 
                 <Divider />
                 <Text size="sm" c="dimmed">
-                  Last modified: {new Date(item.modifiedAt).toLocaleString()}
+                  Last modified: {new Date(entity.updatedAt).toLocaleString()}
                 </Text>
 
                 {/* Data Quality Section */}
@@ -1157,7 +1268,7 @@ export default function ItemDetail({
                     {dataQuality.hasMissingDefinition && (
                       <div>
                         <Text size="sm" fw={600} mb="xs">
-                          Missing definition (click to define):
+                          Missing description (click to define):
                         </Text>
                         <Group gap="xs" mb="md">
                           <Badge
@@ -1166,7 +1277,7 @@ export default function ItemDetail({
                             style={{ cursor: "pointer" }}
                             onClick={() => setMissingDefinitionModalOpen(true)}
                           >
-                            Missing definition
+                            Missing description
                           </Badge>
                           <Badge
                             color="red"
@@ -1179,10 +1290,34 @@ export default function ItemDetail({
                         </Group>
                       </div>
                     )}
+                    {dataQuality.typeMismatches.length > 0 && (
+                      <div>
+                        <Text size="sm" fw={600} mb="xs">
+                          Type mismatches (tag type ≠ entity type):
+                        </Text>
+                        <Stack gap="xs" mb="md">
+                          {dataQuality.typeMismatches.map((mismatch, idx) => (
+                            <Text key={idx} size="sm">
+                              <span style={{ fontWeight: 600 }}>
+                                {mismatch.word}
+                              </span>
+                              : Expected{" "}
+                              <Badge color="orange" size="sm">
+                                {mismatch.expectedType}
+                              </Badge>{" "}
+                              but found{" "}
+                              <Badge color="red" size="sm">
+                                {mismatch.actualType}
+                              </Badge>
+                            </Text>
+                          ))}
+                        </Stack>
+                      </div>
+                    )}
                     {dataQuality.unlinkedRefs.length > 0 && (
                       <div>
                         <Text size="sm" fw={600} mb="xs">
-                          References in definition not linked (click to create
+                          References in description not linked (click to create
                           link):
                         </Text>
                         <Group gap="xs" mb="md">
@@ -1211,13 +1346,15 @@ export default function ItemDetail({
                     {dataQuality.extraLinks.length > 0 && (
                       <div>
                         <Text size="sm" fw={600} mb="xs">
-                          Linked items not in definition (click to remove link):
+                          Linked items not in description (click to remove
+                          link):
                         </Text>
                         <Group gap="xs">
                           {dataQuality.extraLinks.map(
-                            (word: string | undefined, idx: number) => {
-                              if (!word) return null;
-                              const isDeleting = deletingLinkFor === word;
+                            (primaryLabel: string | undefined, idx: number) => {
+                              if (!primaryLabel) return null;
+                              const isDeleting =
+                                deletingLinkFor === primaryLabel;
                               return (
                                 <Badge
                                   key={idx}
@@ -1226,10 +1363,10 @@ export default function ItemDetail({
                                   style={{ cursor: "pointer" }}
                                   onClick={() =>
                                     !isDeleting &&
-                                    handleDeleteLinkFromQuality(word)
+                                    handleDeleteLinkFromQuality(primaryLabel)
                                   }
                                 >
-                                  {isDeleting ? "Deleting..." : word}
+                                  {isDeleting ? "Deleting..." : primaryLabel}
                                 </Badge>
                               );
                             },
@@ -1243,7 +1380,7 @@ export default function ItemDetail({
             </Grid.Col>
 
             {/* Image column - only shown if image exists */}
-            {itemImage && (
+            {entityImage && (
               <Grid.Col span={4}>
                 <Box
                   style={{
@@ -1257,8 +1394,8 @@ export default function ItemDetail({
                   onClick={() => setImageModalOpen(true)}
                 >
                   <img
-                    src={itemImage}
-                    alt={item.word}
+                    src={entityImage}
+                    alt={entity.primaryLabel}
                     style={{
                       display: "block",
                       maxHeight: "300px",
@@ -1301,8 +1438,8 @@ export default function ItemDetail({
           }}
         >
           <img
-            src={itemImage || ""}
-            alt={item.word}
+            src={entityImage || ""}
+            alt={entity.primaryLabel}
             style={{
               display: "block",
               maxWidth: "90vw",
@@ -1363,31 +1500,28 @@ export default function ItemDetail({
                 )}
                 <Text size="sm" fw={500}>
                   Outgoing (
-                  {links?.filter((l) => l.sourceItemId === Number(id)).length ||
-                    0}
-                  )
+                  {links?.filter((l) => l.sourceId === Number(id)).length || 0})
                 </Text>
               </Group>
               {!outgoingCollapsed && (
                 <Stack gap="xs">
                   {links &&
-                  links.filter((l) => l.sourceItemId === Number(id)).length >
-                    0 ? (
+                  links.filter((l) => l.sourceId === Number(id)).length > 0 ? (
                     links
-                      .filter((link) => link.sourceItemId === Number(id))
+                      .filter((link) => link.sourceId === Number(id))
                       .map((link) => {
-                        const linkedItemId = link.destinationItemId;
+                        const linkedItemId = link.targetId;
                         const linkedItem =
                           linkedItemsQueries.data?.[linkedItemId];
 
                         return (
                           <Paper
-                            key={link.linkId}
+                            key={link.id}
                             p="xs"
                             withBorder
                             style={{
-                              backgroundColor: linkedItem?.type
-                                ? getItemColor(linkedItem.type)
+                              backgroundColor: linkedItem?.typeSlug
+                                ? getEntityColor(linkedItem.typeSlug)
                                 : undefined,
                             }}
                           >
@@ -1410,7 +1544,7 @@ export default function ItemDetail({
                                     }
                                   }}
                                 >
-                                  {linkedItem.word}
+                                  {linkedItem.primaryLabel}
                                 </Text>
                                 <ActionIcon
                                   component={Link}
@@ -1455,31 +1589,28 @@ export default function ItemDetail({
                 )}
                 <Text size="sm" fw={500}>
                   Incoming (
-                  {links?.filter((l) => l.destinationItemId === Number(id))
-                    .length || 0}
-                  )
+                  {links?.filter((l) => l.targetId === Number(id)).length || 0})
                 </Text>
               </Group>
               {!incomingCollapsed && (
                 <Stack gap="xs">
                   {links &&
-                  links.filter((l) => l.destinationItemId === Number(id))
-                    .length > 0 ? (
+                  links.filter((l) => l.targetId === Number(id)).length > 0 ? (
                     links
-                      .filter((link) => link.destinationItemId === Number(id))
+                      .filter((link) => link.targetId === Number(id))
                       .map((link) => {
-                        const linkedItemId = link.sourceItemId;
+                        const linkedItemId = link.sourceId;
                         const linkedItem =
                           linkedItemsQueries.data?.[linkedItemId];
 
                         return (
                           <Paper
-                            key={link.linkId}
+                            key={link.id}
                             p="xs"
                             withBorder
                             style={{
-                              backgroundColor: linkedItem?.type
-                                ? getItemColor(linkedItem.type)
+                              backgroundColor: linkedItem?.typeSlug
+                                ? getEntityColor(linkedItem.typeSlug)
                                 : undefined,
                             }}
                           >
@@ -1502,7 +1633,7 @@ export default function ItemDetail({
                                     }
                                   }}
                                 >
-                                  {linkedItem.word}
+                                  {linkedItem.primaryLabel}
                                 </Text>
                                 <ActionIcon
                                   component={Link}

@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import {
   GetStats,
   GetSettings,
-  GetItem,
-  GetItemByWord,
+  GetEntity,
+  SearchEntities,
   HasEnvFile,
   GetConstants,
 } from "@wailsjs/go/main/App.js";
@@ -52,7 +52,7 @@ export function useAppInitialization() {
               break;
             case "item":
               if (settings.lastWordId && settings.lastWordId > 0) {
-                GetItem(settings.lastWordId)
+                GetEntity(settings.lastWordId)
                   .then(() => {
                     setInitialPath(`/item/${settings.lastWordId}`);
                   })
@@ -60,10 +60,10 @@ export function useAppInitialization() {
                     LogError(
                       `Failed to load last item ${settings.lastWordId}, falling back to poetry: ${e}`,
                     );
-                    GetItemByWord("poetry")
-                      .then((poetryItem) => {
-                        if (poetryItem) {
-                          setInitialPath(`/item/${poetryItem.itemId}`);
+                    SearchEntities("poetry", "")
+                      .then((results) => {
+                        if (results && results.length > 0) {
+                          setInitialPath(`/item/${results[0].id}`);
                         }
                       })
                       .catch((e) =>
@@ -79,7 +79,7 @@ export function useAppInitialization() {
           }
         } else if (settings.lastWordId && settings.lastWordId > 0) {
           // Fallback to old behavior if lastView not set
-          GetItem(settings.lastWordId)
+          GetEntity(settings.lastWordId)
             .then(() => {
               setInitialPath(`/item/${settings.lastWordId}`);
             })
@@ -87,10 +87,10 @@ export function useAppInitialization() {
               LogError(
                 `Failed to load last item ${settings.lastWordId}, falling back to poetry: ${e}`,
               );
-              GetItemByWord("poetry")
-                .then((poetryItem) => {
-                  if (poetryItem) {
-                    setInitialPath(`/item/${poetryItem.itemId}`);
+              SearchEntities("poetry", "")
+                .then((results) => {
+                  if (results && results.length > 0) {
+                    setInitialPath(`/item/${results[0].id}`);
                   }
                 })
                 .catch((e) => LogError(`Failed to get poetry item: ${e}`));

@@ -7,8 +7,8 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   GetUnlinkedReferences,
-  GetLinkedItemsNotInDefinition,
-  GetDanglingLinks,
+  GetLinkedEntitiesNotInDescription,
+  GetDanglingRelationships,
   GetSettings,
   SaveReportLinkIntegrityCollapsed,
   SaveTabSelection,
@@ -44,7 +44,7 @@ export function LinkIntegrityReport() {
   const { data: linkedNotInDef } = useQuery({
     queryKey: ["linkedNotInDef"],
     queryFn: async () => {
-      const res = await GetLinkedItemsNotInDefinition();
+      const res = await GetLinkedEntitiesNotInDescription();
       return res || [];
     },
   });
@@ -52,7 +52,7 @@ export function LinkIntegrityReport() {
   const { data: danglingLinks } = useQuery({
     queryKey: ["danglingLinks"],
     queryFn: async () => {
-      const res = await GetDanglingLinks();
+      const res = await GetDanglingRelationships();
       return res || [];
     },
   });

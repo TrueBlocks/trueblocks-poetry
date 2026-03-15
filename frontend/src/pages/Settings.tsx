@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Container, Title, Tabs, Loader, Center } from "@mantine/core";
-import { Settings as SettingsIcon, Wrench } from "lucide-react";
+import { Settings as SettingsIcon, Wrench, FileJson } from "lucide-react";
 import { GeneralSettings } from "@components/Settings/GeneralSettings";
 import { MaintenanceSettings } from "@components/Settings/MaintenanceSettings";
+import { ConfigEditor } from "@components/Settings/ConfigEditor";
 import { GetAllSettings } from "@wailsjs/go/main/App";
 import { useUIStore } from "@stores/useUIStore";
 
@@ -48,6 +49,9 @@ export default function Settings() {
           <Tabs.Tab value="maintenance" leftSection={<Wrench size={16} />}>
             Maintenance
           </Tabs.Tab>
+          <Tabs.Tab value="config" leftSection={<FileJson size={16} />}>
+            Configuration
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="general">
@@ -56,6 +60,10 @@ export default function Settings() {
 
         <Tabs.Panel value="maintenance">
           <MaintenanceSettings />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="config">
+          <ConfigEditor />
         </Tabs.Panel>
       </Tabs>
     </Container>

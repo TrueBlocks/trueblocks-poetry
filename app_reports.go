@@ -8,51 +8,50 @@ import (
 	"github.com/TrueBlocks/trueblocks-poetry/backend/database"
 	"github.com/TrueBlocks/trueblocks-poetry/backend/services"
 	"github.com/TrueBlocks/trueblocks-poetry/pkg/parser"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 func (a *App) GetUnlinkedReferences() ([]services.UnlinkedReferenceResult, error) {
-	// Get all items
-	allItems, err := a.db.SearchItems("") // Empty search returns all
+	// Get all entities
+	allEntities, err := a.entityService.GetAllEntities()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get items: %w", err)
+		return nil, fmt.Errorf("failed to get entities: %w", err)
 	}
 
-	// Get all links
-	allLinks, err := a.db.GetAllLinks()
+	// Get all relationships
+	allRelationships, err := a.entityService.GetAllRelationships()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get links: %w", err)
+		return nil, fmt.Errorf("failed to get relationships: %w", err)
 	}
 
-	// Create a map of item words for quick lookup
-	itemsByWord := make(map[string]*database.Item)
-	for i := range allItems {
-		itemsByWord[strings.ToLower(allItems[i].Word)] = &allItems[i]
+	// Create a map of entity labels for quick lookup
+	entitiesByLabel := make(map[string]*database.Entity)
+	for i := range allEntities {
+		entitiesByLabel[strings.ToLower(allEntities[i].PrimaryLabel)] = &allEntities[i]
 	}
 
-	// Create a map of links for quick lookup
-	linksMap := make(map[int]map[int]bool) // sourceId -> map[destId]bool
-	for _, link := range allLinks {
-		if linksMap[link.SourceItemID] == nil {
-			linksMap[link.SourceItemID] = make(map[int]bool)
+	// Create a map of relationships for quick lookup
+	relationshipsMap := make(map[int]map[int]bool) // sourceId -> map[targetId]bool
+	for _, rel := range allRelationships {
+		if relationshipsMap[rel.SourceID] == nil {
+			relationshipsMap[rel.SourceID] = make(map[int]bool)
 		}
-		linksMap[link.SourceItemID][link.DestinationItemID] = true
+		relationshipsMap[rel.SourceID][rel.TargetID] = true
 	}
 
-	// Analyze each item for unlinked references
+	// Analyze each entity for unlinked references
 	var results []services.UnlinkedReferenceResult
 
-	for i := range allItems {
-		item := &allItems[i]
-		if item.Definition == nil || *item.Definition == "" {
+	for i := range allEntities {
+		entity := &allEntities[i]
+		if entity.Description == nil || *entity.Description == "" {
 			continue
 		}
 
-		// Find all {word:}, {writer:}, {title:} references in definition
+		// Find all {word:}, {writer:}, {title:} references in description
 		unlinkedRefs := []services.UnlinkedReferenceDetail{}
 
 		// Use centralized parser
-		refs := parser.ParseReferences(*item.Definition)
+		refs := parser.ParseReferences(*entity.Description)
 		for _, ref := range refs {
 			refType := ref.Type
 			refWord := ref.Value
@@ -68,17 +67,17 @@ func (a *App) GetUnlinkedReferences() ([]services.UnlinkedReferenceResult, error
 				}
 			}
 
-			// Check if this reference exists in items
-			matchedItem := itemsByWord[strings.ToLower(matchWord)]
-			if matchedItem == nil {
-				// Item doesn't exist
+			// Check if this reference exists in entities
+			matchedEntity := entitiesByLabel[strings.ToLower(matchWord)]
+			if matchedEntity == nil {
+				// Entity doesn't exist
 				unlinkedRefs = append(unlinkedRefs, services.UnlinkedReferenceDetail{
 					Ref:    refWord,
 					Reason: "missing",
 				})
 			} else {
-				// Item exists, check if it's linked
-				if linksMap[item.ItemID] == nil || !linksMap[item.ItemID][matchedItem.ItemID] {
+				// Entity exists, check if it's linked
+				if relationshipsMap[entity.ID] == nil || !relationshipsMap[entity.ID][matchedEntity.ID] {
 					unlinkedRefs = append(unlinkedRefs, services.UnlinkedReferenceDetail{
 						Ref:    refWord,
 						Reason: "unlinked",
@@ -89,9 +88,9 @@ func (a *App) GetUnlinkedReferences() ([]services.UnlinkedReferenceResult, error
 
 		if len(unlinkedRefs) > 0 {
 			results = append(results, services.UnlinkedReferenceResult{
-				ItemID:       item.ItemID,
-				Word:         item.Word,
-				Type:         item.Type,
+				ID:           entity.ID,
+				PrimaryLabel: entity.PrimaryLabel,
+				TypeSlug:     entity.TypeSlug,
 				UnlinkedRefs: unlinkedRefs,
 				RefCount:     len(unlinkedRefs),
 			})
@@ -101,108 +100,54 @@ func (a *App) GetUnlinkedReferences() ([]services.UnlinkedReferenceResult, error
 	return results, nil
 }
 
-// GetAllCliches returns all cliches
-func (a *App) GetAllCliches() ([]database.Cliche, error) {
-	return a.db.GetAllCliches()
-}
-
-// GetAllNames returns all names
-func (a *App) GetAllNames() ([]database.Name, error) {
-	return a.db.GetAllNames()
-}
-
-// GetAllLiteraryTerms returns all literary terms
-func (a *App) GetAllLiteraryTerms() ([]database.LiteraryTerm, error) {
-	return a.db.GetAllLiteraryTerms()
-}
-
-// MergeLiteraryTerm merges a literary term into an existing item
-func (a *App) MergeLiteraryTerm(termID int) error {
-	return a.db.MergeLiteraryTerm(termID)
-}
-
-// DeleteLiteraryTerm permanently deletes a literary term
-func (a *App) DeleteLiteraryTerm(termID int) error {
-	runtime.LogInfof(a.ctx, "DeleteLiteraryTerm called with ID: %d", termID)
-	err := a.db.DeleteLiteraryTerm(termID)
-	if err != nil {
-		runtime.LogErrorf(a.ctx, "DeleteLiteraryTerm error: %v", err)
-		return err
-	}
-	runtime.LogInfof(a.ctx, "DeleteLiteraryTerm success for ID: %d", termID)
-	return nil
-}
-
 // GetAllSources returns all sources
 func (a *App) GetAllSources() ([]database.Source, error) {
 	return a.db.GetAllSources()
 }
 
-// stripPossessive removes possessive 's or s' from text
-func stripPossessive(text string) string {
-	lowerText := strings.ToLower(text)
-	// Handle straight apostrophe 's
-	if strings.HasSuffix(lowerText, "'s") {
-		return text[:len(text)-2]
-	}
-	// Handle curly apostrophe 's
-	if strings.HasSuffix(lowerText, "'s") {
-		return text[:len(text)-2]
-	}
-	// Handle straight apostrophe s'
-	if strings.HasSuffix(lowerText, "s'") {
-		return text[:len(text)-1]
-	}
-	// Handle curly apostrophe s'
-	if strings.HasSuffix(lowerText, "s'") {
-		return text[:len(text)-1]
-	}
-	return text
-}
-
-// GetDuplicateItems returns a report of items with duplicate stripped names
-func (a *App) GetDuplicateItems() ([]services.DuplicateItemResult, error) {
-	// Get all items
-	allItems, err := a.db.SearchItems("")
+// GetDuplicateEntities returns a report of entities with duplicate stripped labels
+func (a *App) GetDuplicateEntities() ([]services.DuplicateEntityResult, error) {
+	// Get all entities
+	allEntities, err := a.entityService.GetAllEntities()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get items: %w", err)
+		return nil, fmt.Errorf("failed to get entities: %w", err)
 	}
 
-	// Group items by stripped word (case-insensitive)
-	groups := make(map[string][]database.Item)
-	for _, item := range allItems {
-		stripped := strings.ToLower(stripPossessive(item.Word))
-		groups[stripped] = append(groups[stripped], item)
+	// Group entities by stripped label (case-insensitive)
+	groups := make(map[string][]database.Entity)
+	for _, entity := range allEntities {
+		stripped := strings.ToLower(database.StripPossessive(entity.PrimaryLabel))
+		groups[stripped] = append(groups[stripped], entity)
 	}
 
-	// Find groups with more than one item
-	var results []services.DuplicateItemResult
-	for strippedWord, items := range groups {
-		if len(items) > 1 {
-			// Sort items by ID to have consistent ordering
-			sort.Slice(items, func(i, j int) bool {
-				return items[i].ItemID < items[j].ItemID
+	// Find groups with more than one entity
+	var results []services.DuplicateEntityResult
+	for strippedLabel, entities := range groups {
+		if len(entities) > 1 {
+			// Sort entities by ID to have consistent ordering
+			sort.Slice(entities, func(i, j int) bool {
+				return entities[i].ID < entities[j].ID
 			})
 
-			// First item is the "original", rest are duplicates
-			original := items[0]
-			duplicates := items[1:]
+			// First entity is the "original", rest are duplicates
+			original := entities[0]
+			duplicates := entities[1:]
 
-			duplicateInfo := []services.DuplicateItemDetail{}
+			duplicateInfo := []services.DuplicateEntityDetail{}
 			for _, dup := range duplicates {
-				duplicateInfo = append(duplicateInfo, services.DuplicateItemDetail{
-					ItemID: dup.ItemID,
-					Word:   dup.Word,
-					Type:   dup.Type,
+				duplicateInfo = append(duplicateInfo, services.DuplicateEntityDetail{
+					ID:           dup.ID,
+					PrimaryLabel: dup.PrimaryLabel,
+					TypeSlug:     dup.TypeSlug,
 				})
 			}
 
-			results = append(results, services.DuplicateItemResult{
-				StrippedWord: strippedWord,
-				Original: services.DuplicateItemDetail{
-					ItemID: original.ItemID,
-					Word:   original.Word,
-					Type:   original.Type,
+			results = append(results, services.DuplicateEntityResult{
+				StrippedLabel: strippedLabel,
+				Original: services.DuplicateEntityDetail{
+					ID:           original.ID,
+					PrimaryLabel: original.PrimaryLabel,
+					TypeSlug:     original.TypeSlug,
 				},
 				Duplicates: duplicateInfo,
 				Count:      len(duplicates),
@@ -213,111 +158,100 @@ func (a *App) GetDuplicateItems() ([]services.DuplicateItemResult, error) {
 	return results, nil
 }
 
-func (a *App) GetSelfReferentialItems() ([]services.SelfReferenceResult, error) {
-	// Get all items that might have tags
-	query := database.MustLoadQuery("self_ref_items")
-
-	rows, err := a.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query items: %w", err)
+// MergeDuplicateEntities merges duplicate entities into an original entity
+func (a *App) MergeDuplicateEntities(originalID int, duplicateIDs []int) error {
+	for _, dupID := range duplicateIDs {
+		// Move links pointing to duplicate -> original
+		if err := a.db.UpdateLinksDestination(dupID, originalID); err != nil {
+			return fmt.Errorf("failed to update link destinations for %d: %w", dupID, err)
+		}
+		// Move links originating from duplicate -> original
+		if err := a.db.UpdateLinksSource(dupID, originalID); err != nil {
+			return fmt.Errorf("failed to update link sources for %d: %w", dupID, err)
+		}
+		// Delete the duplicate entity
+		if err := a.db.DeleteEntity(dupID); err != nil {
+			return fmt.Errorf("failed to delete duplicate entity %d: %w", dupID, err)
+		}
 	}
-	defer func() { _ = rows.Close() }()
+	return nil
+}
+
+func (a *App) GetSelfReferentialEntities() ([]services.SelfReferenceResult, error) {
+	// Get all entities
+	allEntities, err := a.entityService.GetAllEntities()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get entities: %w", err)
+	}
 
 	var results []services.SelfReferenceResult
 
-	for rows.Next() {
-		var itemID int
-		var word, itemType string
-		var definition, derivation, appendicies *string // Use pointers for nullable fields
-
-		if err := rows.Scan(&itemID, &word, &itemType, &definition, &derivation, &appendicies); err != nil {
+	for _, entity := range allEntities {
+		if entity.Description == nil || *entity.Description == "" {
 			continue
-		}
-
-		// Dereference pointers safely
-		def := ""
-		if definition != nil {
-			def = *definition
-		}
-		der := ""
-		if derivation != nil {
-			der = *derivation
-		}
-		app := ""
-		if appendicies != nil {
-			app = *appendicies
 		}
 
 		// Determine tag prefix
 		var prefix string
-		switch itemType {
-		case "Title":
+		switch entity.TypeSlug {
+		case "title":
 			prefix = "title"
-		case "Writer":
+		case "writer":
 			prefix = "writer"
-		case "Reference":
+		case "reference":
 			prefix = "word"
 		default:
 			continue
 		}
 
 		// Construct regex pattern: \{prefix:\s*word\}
-		re, err := parser.GetSpecificReferenceRegex(prefix, word)
+		re, err := parser.GetSpecificReferenceRegex(prefix, entity.PrimaryLabel)
 		if err != nil {
 			continue
 		}
 
-		// Check fields
-		found := false
-		if def != "" && re.MatchString(def) {
-			found = true
-		} else if der != "" && re.MatchString(der) {
-			found = true
-		} else if app != "" && re.MatchString(app) {
-			found = true
-		}
-
-		if found {
+		// Check description
+		if re.MatchString(*entity.Description) {
 			results = append(results, services.SelfReferenceResult{
-				ItemID: itemID,
-				Word:   word,
-				Type:   itemType,
-				Tag:    fmt.Sprintf("{%s: %s}", prefix, word),
+				ID:           entity.ID,
+				PrimaryLabel: entity.PrimaryLabel,
+				TypeSlug:     entity.TypeSlug,
+				Tag:          fmt.Sprintf("{%s: %s}", prefix, entity.PrimaryLabel),
 			})
 		}
 	}
 	return results, nil
 }
 
-// GetOrphanedItems returns items with no incoming or outgoing links
-func (a *App) GetOrphanedItems() ([]services.OrphanedItemResult, error) {
-	// Get all items
-	allItems, err := a.db.SearchItems("")
+// GetOrphanedEntities returns entities with no incoming or outgoing relationships
+func (a *App) GetOrphanedEntities() ([]services.OrphanedEntityResult, error) {
+	// Get all entities
+	allEntities, err := a.entityService.GetAllEntities()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get items: %w", err)
+		return nil, fmt.Errorf("failed to get entities: %w", err)
 	}
 
-	// Get all links
-	allLinks, err := a.db.GetAllLinks()
+	// Get all relationships
+	allRelationships, err := a.entityService.GetAllRelationships()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get links: %w", err)
+		return nil, fmt.Errorf("failed to get relationships: %w", err)
 	}
 
-	// Create a set of item IDs that have links
-	connectedItems := make(map[int]bool)
-	for _, link := range allLinks {
-		connectedItems[link.SourceItemID] = true
-		connectedItems[link.DestinationItemID] = true
+	// Create a set of entity IDs that have relationships
+	connectedEntities := make(map[int]bool)
+	for _, rel := range allRelationships {
+		connectedEntities[rel.SourceID] = true
+		connectedEntities[rel.TargetID] = true
 	}
 
-	// Find items without any links
-	var results []services.OrphanedItemResult
-	for _, item := range allItems {
-		if !connectedItems[item.ItemID] {
-			results = append(results, services.OrphanedItemResult{
-				ItemID: item.ItemID,
-				Word:   item.Word,
-				Type:   item.Type,
+	// Find entities without any relationships
+	var results []services.OrphanedEntityResult
+	for _, entity := range allEntities {
+		if !connectedEntities[entity.ID] {
+			results = append(results, services.OrphanedEntityResult{
+				ID:           entity.ID,
+				PrimaryLabel: entity.PrimaryLabel,
+				TypeSlug:     entity.TypeSlug,
 			})
 		}
 	}
@@ -325,102 +259,85 @@ func (a *App) GetOrphanedItems() ([]services.OrphanedItemResult, error) {
 	return results, nil
 }
 
-// GetLinkedItemsNotInDefinition returns items that have links but those linked items aren't referenced in the definition
-func (a *App) GetLinkedItemsNotInDefinition() ([]services.LinkedItemNotInDefinitionResult, error) {
-	// Single SQL query to get all items with their outgoing links efficiently
-	query := `
-		SELECT 
-			i.item_id,
-			i.word,
-			i.type,
-			COALESCE(i.definition, ''),
-			COALESCE(i.derivation, ''),
-			COALESCE(i.appendicies, ''),
-			dest.word as linked_word
-		FROM items i
-		INNER JOIN links l ON i.item_id = l.source_item_id
-		INNER JOIN items dest ON l.destination_item_id = dest.item_id
-		WHERE (i.definition IS NOT NULL AND TRIM(i.definition) != '')
-		   OR (i.derivation IS NOT NULL AND TRIM(i.derivation) != '')
-		   OR (i.appendicies IS NOT NULL AND TRIM(i.appendicies) != '')
-		ORDER BY i.item_id, dest.word
-	`
-
-	rows, err := a.db.Query(query)
+// GetLinkedEntitiesNotInDescription returns entities that have relationships but those linked entities aren't referenced in the description
+func (a *App) GetLinkedEntitiesNotInDescription() ([]services.LinkedEntityNotInDescriptionResult, error) {
+	// Get all entities
+	allEntities, err := a.entityService.GetAllEntities()
 	if err != nil {
-		return nil, fmt.Errorf("failed to query items with links: %w", err)
+		return nil, fmt.Errorf("failed to get entities: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
-	// Group results by item
-	itemMap := make(map[int]map[string]interface{})
-	itemOrder := []int{}
+	// Get all relationships
+	allRelationships, err := a.entityService.GetAllRelationships()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get relationships: %w", err)
+	}
 
-	for rows.Next() {
-		var itemID int
-		var word, itemType, linkedWord string
-		var definition, derivation, appendicies string
+	// Build map of entity ID -> list of linked entity labels with relationship IDs
+	type linkInfo struct {
+		Label string
+		RelID int
+	}
+	linkedLabels := make(map[int][]linkInfo)
+	entitiesByID := make(map[int]database.Entity)
+	for _, e := range allEntities {
+		entitiesByID[e.ID] = e
+	}
 
-		if err := rows.Scan(&itemID, &word, &itemType, &definition, &derivation, &appendicies, &linkedWord); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+	for _, rel := range allRelationships {
+		if target, ok := entitiesByID[rel.TargetID]; ok {
+			linkedLabels[rel.SourceID] = append(linkedLabels[rel.SourceID], linkInfo{target.PrimaryLabel, rel.ID})
+		}
+	}
+
+	var results []services.LinkedEntityNotInDescriptionResult
+
+	for _, entity := range allEntities {
+		if entity.Description == nil || *entity.Description == "" {
+			continue
 		}
 
-		// Initialize item if not seen before
-		if _, exists := itemMap[itemID]; !exists {
-			itemMap[itemID] = map[string]interface{}{
-				"itemId":            itemID,
-				"word":              word,
-				"type":              itemType,
-				"definition":        definition,
-				"derivation":        derivation,
-				"appendicies":       appendicies,
-				"linkedWords":       []string{},
-				"missingReferences": []string{},
+		labels, hasLinks := linkedLabels[entity.ID]
+		if !hasLinks {
+			continue
+		}
+
+		description := strings.ToLower(*entity.Description)
+
+		// Also check derivation and appendicies
+		if val, ok := entity.Attributes["derivation"]; ok {
+			if str, ok := val.(string); ok {
+				description += " " + strings.ToLower(str)
 			}
-			itemOrder = append(itemOrder, itemID)
+		}
+		if val, ok := entity.Attributes["appendicies"]; ok {
+			if str, ok := val.(string); ok {
+				description += " " + strings.ToLower(str)
+			}
 		}
 
-		// Add linked word to this item's list
-		itemData := itemMap[itemID]
-		itemData["linkedWords"] = append(itemData["linkedWords"].([]string), linkedWord)
-	}
+		// Replace 's} with } etc (simplified for now)
+		description = strings.ReplaceAll(description, "'s}", "}")
+		description = strings.ReplaceAll(description, "s'}", "s}")
+		description = strings.ReplaceAll(description, "’s}", "}")
+		description = strings.ReplaceAll(description, "s’}", "s}")
 
-	// Now check each item's text fields for missing references
-	var results []services.LinkedItemNotInDefinitionResult
-	for _, itemID := range itemOrder {
-		itemData := itemMap[itemID]
-		// Combine all text fields and strip possessives from tags
-		combinedText := itemData["definition"].(string) + " " +
-			itemData["derivation"].(string) + " " +
-			itemData["appendicies"].(string)
-
-		// Strip possessives from text (e.g., {writer:Larry Stark's} -> {writer:larry stark})
-		allText := strings.ToLower(combinedText)
-		// Replace 's} with } (straight apostrophe)
-		allText = strings.ReplaceAll(allText, "'s}", "}")
-		// Replace 's} with } (curly apostrophe)
-		allText = strings.ReplaceAll(allText, "'s}", "}")
-		// Replace s'} with s} (straight apostrophe)
-		allText = strings.ReplaceAll(allText, "s'}", "s}")
-		// Replace s'} with s} (curly apostrophe)
-		allText = strings.ReplaceAll(allText, "s'}", "s}")
-
-		linkedWords := itemData["linkedWords"].([]string)
-		var missingReferences []string
-
-		for _, linkedWord := range linkedWords {
-			// Simply check if linkedWord + "}" appears in any text field (matches any tag type)
-			normalizedWord := strings.ToLower(stripPossessive(linkedWord))
-			if !strings.Contains(allText, normalizedWord+"}") {
-				missingReferences = append(missingReferences, linkedWord)
+		var missingReferences []services.MissingReferenceDetail
+		for _, info := range labels {
+			normalizedLabel := strings.ToLower(database.StripPossessive(info.Label))
+			if !strings.Contains(description, normalizedLabel+"}") {
+				missingReferences = append(missingReferences, services.MissingReferenceDetail{
+					Label:          info.Label,
+					RelationshipID: info.RelID,
+				})
 			}
 		}
 
 		if len(missingReferences) > 0 {
-			results = append(results, services.LinkedItemNotInDefinitionResult{
-				ItemID:            itemData["itemId"].(int),
-				Word:              itemData["word"].(string),
-				Type:              itemData["type"].(string),
+			results = append(results, services.LinkedEntityNotInDescriptionResult{
+				ID:                entity.ID,
+				PrimaryLabel:      entity.PrimaryLabel,
+				TypeSlug:          entity.TypeSlug,
 				MissingReferences: missingReferences,
 			})
 		}
@@ -429,22 +346,118 @@ func (a *App) GetLinkedItemsNotInDefinition() ([]services.LinkedItemNotInDefinit
 	return results, nil
 }
 
-// GetItemsWithoutDefinitions returns items that have no definition or "MISSING DATA"
-func (a *App) GetItemsWithoutDefinitions() ([]services.ItemWithoutDefinitionResult, error) {
-	return a.itemService.GetItemsWithoutDefinitions()
+// GetEntitiesWithoutDescriptions returns entities that have no description
+func (a *App) GetEntitiesWithoutDescriptions() ([]services.EntityWithoutDescriptionResult, error) {
+	allEntities, err := a.entityService.GetAllEntities()
+	if err != nil {
+		return nil, err
+	}
+
+	var results []services.EntityWithoutDescriptionResult
+	for _, entity := range allEntities {
+		if entity.Description == nil || *entity.Description == "" {
+			results = append(results, services.EntityWithoutDescriptionResult{
+				ID:             entity.ID,
+				PrimaryLabel:   entity.PrimaryLabel,
+				TypeSlug:       entity.TypeSlug,
+				HasMissingData: true,
+			})
+		}
+	}
+	return results, nil
 }
 
-// GetItemsWithUnknownTypes returns items whose type is not Writer, Title, or Reference
-func (a *App) GetItemsWithUnknownTypes() ([]services.ItemWithUnknownTypeResult, error) {
-	return a.itemService.GetItemsWithUnknownTypes()
+// GetEntitiesWithUnknownTypes returns entities whose type is not Writer, Title, or Reference
+func (a *App) GetEntitiesWithUnknownTypes() ([]services.EntityWithUnknownTypeResult, error) {
+	allEntities, err := a.entityService.GetAllEntities()
+	if err != nil {
+		return nil, err
+	}
+
+	var results []services.EntityWithUnknownTypeResult
+	knownTypes := map[string]bool{"writer": true, "title": true, "reference": true}
+
+	for _, entity := range allEntities {
+		if !knownTypes[strings.ToLower(entity.TypeSlug)] {
+			results = append(results, services.EntityWithUnknownTypeResult{
+				ID:           entity.ID,
+				PrimaryLabel: entity.PrimaryLabel,
+				TypeSlug:     entity.TypeSlug,
+			})
+		}
+	}
+	return results, nil
 }
 
-// GetUnknownTags returns items with tags other than {word:, {writer:, or {title:
+// GetUnknownTags returns entities with tags other than {word:, {writer:, or {title:
 func (a *App) GetUnknownTags() ([]services.UnknownTagResult, error) {
-	return a.itemService.GetUnknownTags()
+	allEntities, err := a.entityService.GetAllEntities()
+	if err != nil {
+		return nil, err
+	}
+
+	var results []services.UnknownTagResult
+	for _, entity := range allEntities {
+		if entity.Description == nil {
+			continue
+		}
+
+		refs := parser.ParseReferences(*entity.Description)
+		var unknownTags []string
+		for _, ref := range refs {
+			if ref.Type != "word" && ref.Type != "writer" && ref.Type != "title" {
+				unknownTags = append(unknownTags, ref.Original)
+			}
+		}
+
+		if len(unknownTags) > 0 {
+			results = append(results, services.UnknownTagResult{
+				ID:           entity.ID,
+				PrimaryLabel: entity.PrimaryLabel,
+				TypeSlug:     entity.TypeSlug,
+				UnknownTags:  unknownTags,
+				TagCount:     len(unknownTags),
+			})
+		}
+	}
+	return results, nil
 }
 
-// MergeDuplicateItems merges duplicate items into the original by redirecting links and deleting duplicates
-func (a *App) MergeDuplicateItems(originalID int, duplicateIDs []int) error {
-	return a.itemService.MergeDuplicateItems(originalID, duplicateIDs)
+// GetDanglingRelationships returns relationships that point to non-existent entities
+func (a *App) GetDanglingRelationships() ([]services.DanglingRelationshipResult, error) {
+	allRelationships, err := a.entityService.GetAllRelationships()
+	if err != nil {
+		return nil, err
+	}
+
+	var results []services.DanglingRelationshipResult
+	for _, rel := range allRelationships {
+		source, err := a.entityService.GetEntity(rel.SourceID)
+		if err != nil {
+			// Source missing
+			results = append(results, services.DanglingRelationshipResult{
+				RelationshipID: rel.ID,
+				SourceID:       rel.SourceID,
+				TargetID:       rel.TargetID,
+				Label:          rel.Label,
+				MissingSide:    "source",
+			})
+			continue
+		}
+
+		_, err = a.entityService.GetEntity(rel.TargetID)
+		if err != nil {
+			// Target missing
+			results = append(results, services.DanglingRelationshipResult{
+				RelationshipID: rel.ID,
+				SourceID:       rel.SourceID,
+				TargetID:       rel.TargetID,
+				Label:          rel.Label,
+				SourceLabel:    source.PrimaryLabel,
+				SourceType:     source.TypeSlug,
+				MissingSide:    "target",
+			})
+		}
+	}
+	return results, nil
 }

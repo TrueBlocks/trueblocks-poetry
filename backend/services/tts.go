@@ -174,7 +174,7 @@ func (s *TTSService) SpeakWord(text string, itemType string, itemWord string, it
 	} else {
 		slog.Info("Cached TTS audio", "path", cacheFile)
 		// Update database flag
-		if _, err := s.db.Conn().Exec("UPDATE items SET has_tts = 1 WHERE item_id = ?", itemID); err != nil {
+		if _, err := s.db.Conn().Exec("UPDATE entities SET attributes = json_set(COALESCE(attributes, '{}'), '$.has_tts', 1) WHERE id = ?", itemID); err != nil {
 			slog.Warn("Failed to update has_tts flag", "error", err)
 		}
 	}

@@ -57,44 +57,80 @@ func copyImageToExport(itemID int, exportFolder string) (string, error) {
 }
 
 // writeItemToMarkdown writes an item's details to the markdown builder
-func writeItemToMarkdown(item database.Item, markdown *strings.Builder, exportFolder string) {
-	fmt.Fprintf(markdown, "## %s\n\n", item.Word)
-	fmt.Fprintf(markdown, "**Type:** %s\n\n", item.Type)
+func writeItemToMarkdown(item database.Entity, markdown *strings.Builder, exportFolder string) {
+	fmt.Fprintf(markdown, "## %s\n\n", item.PrimaryLabel)
+	fmt.Fprintf(markdown, "**Type:** %s\n\n", item.TypeSlug)
+
+	// Helper to get string attribute
+	getAttr := func(key string) string {
+		if val, ok := item.Attributes[key]; ok {
+			if str, ok := val.(string); ok {
+				return str
+			}
+		}
+		return ""
+	}
+
+	// Helper to get bool attribute (for flags)
+	getBoolAttr := func(keys ...string) bool {
+		for _, key := range keys {
+			if val, ok := item.Attributes[key]; ok {
+				if b, ok := val.(bool); ok {
+					return b
+				}
+				// JSON numbers are often float64 in map[string]interface{}
+				if f, ok := val.(float64); ok {
+					return f == 1
+				}
+				if i, ok := val.(int); ok {
+					return i == 1
+				}
+			}
+		}
+		return false
+	}
 
 	// Add image if present
-	if item.HasImage == 1 {
-		if imagePath, err := copyImageToExport(item.ItemID, exportFolder); err == nil && imagePath != "" {
-			fmt.Fprintf(markdown, "![%s](%s)\n\n", item.Word, imagePath)
+	if getBoolAttr("has_image", "hasImage") {
+		if imagePath, err := copyImageToExport(item.ID, exportFolder); err == nil && imagePath != "" {
+			fmt.Fprintf(markdown, "![%s](%s)\n\n", item.PrimaryLabel, imagePath)
 		}
 	}
 
 	// Add TTS note if present
-	if item.HasTts == 1 {
+	if getBoolAttr("has_tts", "hasTts") {
 		markdown.WriteString("🔊 **Has TTS**\n\n")
 	}
 
-	if item.Definition != nil && *item.Definition != "" {
-		resolved := resolveTagsForMarkdown(*item.Definition)
+	if item.Description != nil && *item.Description != "" {
+		resolved := resolveTagsForMarkdown(*item.Description)
 		fmt.Fprintf(markdown, "### Definition\n\n%s\n\n", resolved)
 	}
 
-	if item.Derivation != nil && *item.Derivation != "" {
-		resolved := resolveTagsForMarkdown(*item.Derivation)
+	derivation := getAttr("derivation")
+	if derivation != "" {
+		resolved := resolveTagsForMarkdown(derivation)
 		fmt.Fprintf(markdown, "### Etymology\n\n%s\n\n", resolved)
 	}
 
-	if item.Appendicies != nil && *item.Appendicies != "" {
-		resolved := resolveTagsForMarkdown(*item.Appendicies)
+	appendicies := getAttr("appendicies")
+	if appendicies != "" {
+		resolved := resolveTagsForMarkdown(appendicies)
 		fmt.Fprintf(markdown, "### Notes\n\n%s\n\n", resolved)
 	}
 
-	if (item.Source != nil && *item.Source != "") || (item.SourcePg != nil && *item.SourcePg != "") {
-		if item.Source != nil {
-			resolved := resolveTagsForMarkdown(*item.Source)
+	source := getAttr("source")
+	sourcePg := getAttr("source_pg")
+	if sourcePg == "" {
+		sourcePg = getAttr("sourcePg")
+	}
+	if source != "" || sourcePg != "" {
+		if source != "" {
+			resolved := resolveTagsForMarkdown(source)
 			fmt.Fprintf(markdown, "**Source:** %s", resolved)
 		}
-		if item.SourcePg != nil && *item.SourcePg != "" {
-			fmt.Fprintf(markdown, ", p. %s", *item.SourcePg)
+		if sourcePg != "" {
+			fmt.Fprintf(markdown, ", p. %s", sourcePg)
 		}
 		markdown.WriteString("\n\n")
 	}
@@ -104,56 +140,56 @@ func writeItemToMarkdown(item database.Item, markdown *strings.Builder, exportFo
 
 // ExportToJSON exports all data to a JSON file and returns the full path
 func (a *App) ExportToJSON() (string, error) {
-	items, err := a.db.GetAllItems()
+	items, err := a.entityService.GetAllEntities()
 	if err != nil {
 		return "", fmt.Errorf("failed to get items: %w", err)
 	}
 
-	links, err := a.db.GetAllLinks()
+	links, err := a.entityService.GetAllRelationships()
 	if err != nil {
 		return "", fmt.Errorf("failed to get links: %w", err)
 	}
 
 	// Separate items by type
-	var references []database.Item
-	var writers []database.Item
-	var titles []database.Item
-	var other []database.Item
+	var references []database.Entity
+	var writers []database.Entity
+	var titles []database.Entity
+	var other []database.Entity
 
 	for _, item := range items {
-		switch item.Type {
-		case "Reference":
+		switch item.TypeSlug {
+		case "reference":
 			references = append(references, item)
-		case "Writer":
+		case "writer":
 			writers = append(writers, item)
-		case "Title":
+		case "title":
 			titles = append(titles, item)
-		case "Other":
+		default:
 			other = append(other, item)
 		}
 	}
 
 	// Sort each type alphabetically by Word
 	sort.Slice(references, func(i, j int) bool {
-		return strings.ToLower(references[i].Word) < strings.ToLower(references[j].Word)
+		return strings.ToLower(references[i].PrimaryLabel) < strings.ToLower(references[j].PrimaryLabel)
 	})
 	sort.Slice(writers, func(i, j int) bool {
-		return strings.ToLower(writers[i].Word) < strings.ToLower(writers[j].Word)
+		return strings.ToLower(writers[i].PrimaryLabel) < strings.ToLower(writers[j].PrimaryLabel)
 	})
 	sort.Slice(titles, func(i, j int) bool {
-		return strings.ToLower(titles[i].Word) < strings.ToLower(titles[j].Word)
+		return strings.ToLower(titles[i].PrimaryLabel) < strings.ToLower(titles[j].PrimaryLabel)
 	})
 	sort.Slice(other, func(i, j int) bool {
-		return strings.ToLower(other[i].Word) < strings.ToLower(other[j].Word)
+		return strings.ToLower(other[i].PrimaryLabel) < strings.ToLower(other[j].PrimaryLabel)
 	})
 
 	// Get all reports
 	unlinkedRefs, _ := a.GetUnlinkedReferences()
-	duplicates, _ := a.GetDuplicateItems()
-	orphanedItems, _ := a.GetOrphanedItems()
-	linkedNotInDef, _ := a.GetLinkedItemsNotInDefinition()
-	missingDefs, _ := a.GetItemsWithoutDefinitions()
-	unknownTypes, _ := a.GetItemsWithUnknownTypes()
+	duplicates, _ := a.GetDuplicateEntities()
+	orphanedItems, _ := a.GetOrphanedEntities()
+	linkedNotInDef, _ := a.GetLinkedEntitiesNotInDescription()
+	missingDefs, _ := a.GetEntitiesWithoutDescriptions()
+	unknownTypes, _ := a.GetEntitiesWithUnknownTypes()
 	unknownTags, _ := a.GetUnknownTags()
 
 	// Get settings
@@ -225,42 +261,42 @@ func (a *App) ExportToJSON() (string, error) {
 
 // ExportToMarkdown exports all items to a Markdown file and returns the full path
 func (a *App) ExportToMarkdown() (string, error) {
-	items, err := a.db.GetAllItems()
+	items, err := a.entityService.GetAllEntities()
 	if err != nil {
 		return "", fmt.Errorf("failed to get items: %w", err)
 	}
 
 	// Separate items by type
-	var references []database.Item
-	var writers []database.Item
-	var titles []database.Item
-	var other []database.Item
+	var references []database.Entity
+	var writers []database.Entity
+	var titles []database.Entity
+	var other []database.Entity
 
 	for _, item := range items {
-		switch item.Type {
-		case "Reference":
+		switch item.TypeSlug {
+		case "reference":
 			references = append(references, item)
-		case "Writer":
+		case "writer":
 			writers = append(writers, item)
-		case "Title":
+		case "title":
 			titles = append(titles, item)
-		case "Other":
+		default:
 			other = append(other, item)
 		}
 	}
 
 	// Sort each type alphabetically by Word
 	sort.Slice(references, func(i, j int) bool {
-		return strings.ToLower(references[i].Word) < strings.ToLower(references[j].Word)
+		return strings.ToLower(references[i].PrimaryLabel) < strings.ToLower(references[j].PrimaryLabel)
 	})
 	sort.Slice(writers, func(i, j int) bool {
-		return strings.ToLower(writers[i].Word) < strings.ToLower(writers[j].Word)
+		return strings.ToLower(writers[i].PrimaryLabel) < strings.ToLower(writers[j].PrimaryLabel)
 	})
 	sort.Slice(titles, func(i, j int) bool {
-		return strings.ToLower(titles[i].Word) < strings.ToLower(titles[j].Word)
+		return strings.ToLower(titles[i].PrimaryLabel) < strings.ToLower(titles[j].PrimaryLabel)
 	})
 	sort.Slice(other, func(i, j int) bool {
-		return strings.ToLower(other[i].Word) < strings.ToLower(other[j].Word)
+		return strings.ToLower(other[i].PrimaryLabel) < strings.ToLower(other[j].PrimaryLabel)
 	})
 
 	// Get settings for database info and export path
@@ -346,7 +382,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 		markdown.WriteString("|------|------|----------------|\n")
 		for _, item := range unlinkedRefs {
 			markdown.WriteString(fmt.Sprintf("| %s | %s | %v |\n",
-				item.Word, item.Type, item.RefCount))
+				item.PrimaryLabel, item.TypeSlug, item.RefCount))
 		}
 		markdown.WriteString("\n")
 	} else {
@@ -354,7 +390,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 	}
 
 	// Duplicate Items Report
-	duplicates, _ := a.GetDuplicateItems()
+	duplicates, _ := a.GetDuplicateEntities()
 	markdown.WriteString(fmt.Sprintf("## Duplicate Items (%d)\n\n", len(duplicates)))
 	markdown.WriteString("[↑ Back to top](#top)\n\n")
 	if len(duplicates) > 0 {
@@ -362,7 +398,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 		markdown.WriteString("| Stripped Word | Count |\n")
 		markdown.WriteString("|---------------|-------|\n")
 		for _, item := range duplicates {
-			markdown.WriteString(fmt.Sprintf("| %s | %v |\n", item.StrippedWord, item.Count))
+			markdown.WriteString(fmt.Sprintf("| %s | %v |\n", item.StrippedLabel, item.Count))
 		}
 		markdown.WriteString("\n")
 	} else {
@@ -370,7 +406,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 	}
 
 	// Orphaned Items Report
-	orphanedItems, _ := a.GetOrphanedItems()
+	orphanedItems, _ := a.GetOrphanedEntities()
 	markdown.WriteString(fmt.Sprintf("## Orphaned Items (%d)\n\n", len(orphanedItems)))
 	markdown.WriteString("[↑ Back to top](#top)\n\n")
 	if len(orphanedItems) > 0 {
@@ -378,7 +414,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 		markdown.WriteString("| Word | Type |\n")
 		markdown.WriteString("|------|------|\n")
 		for _, item := range orphanedItems {
-			markdown.WriteString(fmt.Sprintf("| %s | %s |\n", item.Word, item.Type))
+			markdown.WriteString(fmt.Sprintf("| %s | %s |\n", item.PrimaryLabel, item.TypeSlug))
 		}
 		markdown.WriteString("\n")
 	} else {
@@ -386,7 +422,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 	}
 
 	// Linked Items Not In Definition Report
-	linkedNotInDef, _ := a.GetLinkedItemsNotInDefinition()
+	linkedNotInDef, _ := a.GetLinkedEntitiesNotInDescription()
 	markdown.WriteString(fmt.Sprintf("## Linked Items Not In Definition (%d)\n\n", len(linkedNotInDef)))
 	markdown.WriteString("[↑ Back to top](#top)\n\n")
 	if len(linkedNotInDef) > 0 {
@@ -395,7 +431,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 		markdown.WriteString("|------|------|--------------------|\n")
 		for _, item := range linkedNotInDef {
 			markdown.WriteString(fmt.Sprintf("| %s | %s | %v |\n",
-				item.Word, item.Type, len(item.MissingReferences)))
+				item.PrimaryLabel, item.TypeSlug, len(item.MissingReferences)))
 		}
 		markdown.WriteString("\n")
 	} else {
@@ -403,7 +439,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 	}
 
 	// Missing Definitions Report
-	missingDefs, _ := a.GetItemsWithoutDefinitions()
+	missingDefs, _ := a.GetEntitiesWithoutDescriptions()
 	markdown.WriteString(fmt.Sprintf("## Items Without Definitions (%d)\n\n", len(missingDefs)))
 	markdown.WriteString("[↑ Back to top](#top)\n\n")
 	if len(missingDefs) > 0 {
@@ -411,7 +447,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 		markdown.WriteString("| Word | Type |\n")
 		markdown.WriteString("|------|------|\n")
 		for _, item := range missingDefs {
-			markdown.WriteString(fmt.Sprintf("| %s | %s |\n", item.Word, item.Type))
+			markdown.WriteString(fmt.Sprintf("| %s | %s |\n", item.PrimaryLabel, item.TypeSlug))
 		}
 		markdown.WriteString("\n")
 	} else {
@@ -419,7 +455,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 	}
 
 	// Unknown Types Report
-	unknownTypes, _ := a.GetItemsWithUnknownTypes()
+	unknownTypes, _ := a.GetEntitiesWithUnknownTypes()
 	markdown.WriteString(fmt.Sprintf("## Unknown Types (%d)\n\n", len(unknownTypes)))
 	markdown.WriteString("[↑ Back to top](#top)\n\n")
 	if len(unknownTypes) > 0 {
@@ -427,7 +463,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 		markdown.WriteString("| Word | Type |\n")
 		markdown.WriteString("|------|------|\n")
 		for _, item := range unknownTypes {
-			markdown.WriteString(fmt.Sprintf("| %s | %s |\n", item.Word, item.Type))
+			markdown.WriteString(fmt.Sprintf("| %s | %s |\n", item.PrimaryLabel, item.TypeSlug))
 		}
 		markdown.WriteString("\n")
 	} else {
@@ -444,7 +480,7 @@ func (a *App) ExportToMarkdown() (string, error) {
 		markdown.WriteString("|------|------|-------------------|\n")
 		for _, item := range unknownTags {
 			markdown.WriteString(fmt.Sprintf("| %s | %s | %v |\n",
-				item.Word, item.Type, item.TagCount))
+				item.PrimaryLabel, item.TypeSlug, item.TagCount))
 		}
 		markdown.WriteString("\n")
 	} else {

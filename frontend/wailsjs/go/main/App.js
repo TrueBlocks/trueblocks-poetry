@@ -14,36 +14,24 @@ export function CleanOrphanedLinks() {
   return window['go']['main']['App']['CleanOrphanedLinks']();
 }
 
-export function CreateItem(arg1) {
-  return window['go']['main']['App']['CreateItem'](arg1);
+export function CreateEntity(arg1) {
+  return window['go']['main']['App']['CreateEntity'](arg1);
 }
 
-export function CreateLink(arg1, arg2, arg3) {
-  return window['go']['main']['App']['CreateLink'](arg1, arg2, arg3);
+export function CreateRelationship(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CreateRelationship'](arg1, arg2, arg3);
 }
 
-export function CreateLinkOrRemoveTags(arg1, arg2) {
-  return window['go']['main']['App']['CreateLinkOrRemoveTags'](arg1, arg2);
+export function DeleteEntity(arg1) {
+  return window['go']['main']['App']['DeleteEntity'](arg1);
 }
 
-export function DeleteItem(arg1) {
-  return window['go']['main']['App']['DeleteItem'](arg1);
+export function DeleteEntityImage(arg1) {
+  return window['go']['main']['App']['DeleteEntityImage'](arg1);
 }
 
-export function DeleteItemImage(arg1) {
-  return window['go']['main']['App']['DeleteItemImage'](arg1);
-}
-
-export function DeleteLink(arg1) {
-  return window['go']['main']['App']['DeleteLink'](arg1);
-}
-
-export function DeleteLinkByItems(arg1, arg2) {
-  return window['go']['main']['App']['DeleteLinkByItems'](arg1, arg2);
-}
-
-export function DeleteLiteraryTerm(arg1) {
-  return window['go']['main']['App']['DeleteLiteraryTerm'](arg1);
+export function DeleteRelationship(arg1) {
+  return window['go']['main']['App']['DeleteRelationship'](arg1);
 }
 
 export function DeleteSavedSearch(arg1) {
@@ -58,24 +46,12 @@ export function ExportToMarkdown() {
   return window['go']['main']['App']['ExportToMarkdown']();
 }
 
-export function GetAllCliches() {
-  return window['go']['main']['App']['GetAllCliches']();
+export function GetAllGraphData() {
+  return window['go']['main']['App']['GetAllGraphData']();
 }
 
-export function GetAllItems() {
-  return window['go']['main']['App']['GetAllItems']();
-}
-
-export function GetAllLinks() {
-  return window['go']['main']['App']['GetAllLinks']();
-}
-
-export function GetAllLiteraryTerms() {
-  return window['go']['main']['App']['GetAllLiteraryTerms']();
-}
-
-export function GetAllNames() {
-  return window['go']['main']['App']['GetAllNames']();
+export function GetAllRelationships() {
+  return window['go']['main']['App']['GetAllRelationships']();
 }
 
 export function GetAllSettings() {
@@ -86,6 +62,14 @@ export function GetAllSources() {
   return window['go']['main']['App']['GetAllSources']();
 }
 
+export function GetAppConfig() {
+  return window['go']['main']['App']['GetAppConfig']();
+}
+
+export function GetAppConfigContent() {
+  return window['go']['main']['App']['GetAppConfigContent']();
+}
+
 export function GetCapabilities() {
   return window['go']['main']['App']['GetCapabilities']();
 }
@@ -94,8 +78,8 @@ export function GetConstants() {
   return window['go']['main']['App']['GetConstants']();
 }
 
-export function GetDanglingLinks() {
-  return window['go']['main']['App']['GetDanglingLinks']();
+export function GetDanglingRelationships() {
+  return window['go']['main']['App']['GetDanglingRelationships']();
 }
 
 export function GetDatabaseFileSize() {
@@ -106,12 +90,28 @@ export function GetDatabasePath() {
   return window['go']['main']['App']['GetDatabasePath']();
 }
 
-export function GetDuplicateItems() {
-  return window['go']['main']['App']['GetDuplicateItems']();
+export function GetDuplicateEntities() {
+  return window['go']['main']['App']['GetDuplicateEntities']();
 }
 
 export function GetEgoGraph(arg1, arg2) {
   return window['go']['main']['App']['GetEgoGraph'](arg1, arg2);
+}
+
+export function GetEntitiesWithUnknownTypes() {
+  return window['go']['main']['App']['GetEntitiesWithUnknownTypes']();
+}
+
+export function GetEntitiesWithoutDescriptions() {
+  return window['go']['main']['App']['GetEntitiesWithoutDescriptions']();
+}
+
+export function GetEntity(arg1) {
+  return window['go']['main']['App']['GetEntity'](arg1);
+}
+
+export function GetEntityImage(arg1) {
+  return window['go']['main']['App']['GetEntityImage'](arg1);
 }
 
 export function GetEnvLocation() {
@@ -130,56 +130,24 @@ export function GetImageCacheInfo() {
   return window['go']['main']['App']['GetImageCacheInfo']();
 }
 
-export function GetItem(arg1) {
-  return window['go']['main']['App']['GetItem'](arg1);
+export function GetLinkedEntitiesNotInDescription() {
+  return window['go']['main']['App']['GetLinkedEntitiesNotInDescription']();
 }
 
-export function GetItemByWord(arg1) {
-  return window['go']['main']['App']['GetItemByWord'](arg1);
-}
-
-export function GetItemImage(arg1) {
-  return window['go']['main']['App']['GetItemImage'](arg1);
-}
-
-export function GetItemLinks(arg1) {
-  return window['go']['main']['App']['GetItemLinks'](arg1);
-}
-
-export function GetItemsWithUnknownTypes() {
-  return window['go']['main']['App']['GetItemsWithUnknownTypes']();
-}
-
-export function GetItemsWithoutDefinitions() {
-  return window['go']['main']['App']['GetItemsWithoutDefinitions']();
-}
-
-export function GetLinkedItemsNotInDefinition() {
-  return window['go']['main']['App']['GetLinkedItemsNotInDefinition']();
-}
-
-export function GetMarkedItems() {
-  return window['go']['main']['App']['GetMarkedItems']();
+export function GetMarkedEntities() {
+  return window['go']['main']['App']['GetMarkedEntities']();
 }
 
 export function GetNavigationHistory() {
   return window['go']['main']['App']['GetNavigationHistory']();
 }
 
-export function GetOrphanedItems() {
-  return window['go']['main']['App']['GetOrphanedItems']();
+export function GetOrphanedEntities() {
+  return window['go']['main']['App']['GetOrphanedEntities']();
 }
 
-export function GetPoetIds() {
-  return window['go']['main']['App']['GetPoetIds']();
-}
-
-export function GetRandomItem() {
-  return window['go']['main']['App']['GetRandomItem']();
-}
-
-export function GetRecentItems(arg1) {
-  return window['go']['main']['App']['GetRecentItems'](arg1);
+export function GetRandomEntity() {
+  return window['go']['main']['App']['GetRandomEntity']();
 }
 
 export function GetRecentSearches() {
@@ -190,12 +158,20 @@ export function GetReferencePattern() {
   return window['go']['main']['App']['GetReferencePattern']();
 }
 
+export function GetRelationships(arg1) {
+  return window['go']['main']['App']['GetRelationships'](arg1);
+}
+
+export function GetRelationshipsWithDetails(arg1) {
+  return window['go']['main']['App']['GetRelationshipsWithDetails'](arg1);
+}
+
 export function GetSavedSearches() {
   return window['go']['main']['App']['GetSavedSearches']();
 }
 
-export function GetSelfReferentialItems() {
-  return window['go']['main']['App']['GetSelfReferentialItems']();
+export function GetSelfReferentialEntities() {
+  return window['go']['main']['App']['GetSelfReferentialEntities']();
 }
 
 export function GetSettings() {
@@ -230,12 +206,8 @@ export function HasEnvFile() {
   return window['go']['main']['App']['HasEnvFile']();
 }
 
-export function MergeDuplicateItems(arg1, arg2) {
-  return window['go']['main']['App']['MergeDuplicateItems'](arg1, arg2);
-}
-
-export function MergeLiteraryTerm(arg1) {
-  return window['go']['main']['App']['MergeLiteraryTerm'](arg1);
+export function MergeDuplicateEntities(arg1, arg2) {
+  return window['go']['main']['App']['MergeDuplicateEntities'](arg1, arg2);
 }
 
 export function RemoveRecentSearch(arg1) {
@@ -246,8 +218,16 @@ export function RunAdHocQuery(arg1) {
   return window['go']['main']['App']['RunAdHocQuery'](arg1);
 }
 
+export function SaveAppConfigContent(arg1) {
+  return window['go']['main']['App']['SaveAppConfigContent'](arg1);
+}
+
 export function SaveCurrentSearch(arg1) {
   return window['go']['main']['App']['SaveCurrentSearch'](arg1);
+}
+
+export function SaveEntityImage(arg1, arg2) {
+  return window['go']['main']['App']['SaveEntityImage'](arg1, arg2);
 }
 
 export function SaveEnvVar(arg1, arg2) {
@@ -256,10 +236,6 @@ export function SaveEnvVar(arg1, arg2) {
 
 export function SaveIncomingCollapsed(arg1) {
   return window['go']['main']['App']['SaveIncomingCollapsed'](arg1);
-}
-
-export function SaveItemImage(arg1, arg2) {
-  return window['go']['main']['App']['SaveItemImage'](arg1, arg2);
 }
 
 export function SaveLastView(arg1) {
@@ -306,12 +282,8 @@ export function SaveWindowPosition(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SaveWindowPosition'](arg1, arg2, arg3, arg4);
 }
 
-export function SearchItems(arg1) {
-  return window['go']['main']['App']['SearchItems'](arg1);
-}
-
-export function SearchItemsWithOptions(arg1) {
-  return window['go']['main']['App']['SearchItemsWithOptions'](arg1);
+export function SearchEntities(arg1, arg2) {
+  return window['go']['main']['App']['SearchEntities'](arg1, arg2);
 }
 
 export function SelectExportFolder() {
@@ -326,12 +298,12 @@ export function SpeakWord(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SpeakWord'](arg1, arg2, arg3, arg4);
 }
 
-export function ToggleItemMark(arg1, arg2) {
-  return window['go']['main']['App']['ToggleItemMark'](arg1, arg2);
+export function ToggleEntityMark(arg1, arg2) {
+  return window['go']['main']['App']['ToggleEntityMark'](arg1, arg2);
 }
 
-export function UpdateItem(arg1) {
-  return window['go']['main']['App']['UpdateItem'](arg1);
+export function UpdateEntity(arg1) {
+  return window['go']['main']['App']['UpdateEntity'](arg1);
 }
 
 export function UpdateSettings(arg1) {

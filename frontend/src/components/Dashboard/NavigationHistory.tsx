@@ -9,11 +9,11 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 import { History, ChevronDown, ChevronUp } from "lucide-react";
 import { database } from "@wailsjs/go/models";
-import { getItemColor } from "@utils/colors";
+import { getEntityColor } from "@utils/colors";
 import { useUIStore } from "@stores/useUIStore";
 
 interface NavigationHistoryProps {
-  history: database.Item[] | null;
+  history: database.Entity[] | null;
 }
 
 export function NavigationHistory({ history }: NavigationHistoryProps) {
@@ -53,19 +53,19 @@ export function NavigationHistory({ history }: NavigationHistoryProps) {
         <Group wrap={!recentPathCollapsed ? "wrap" : "nowrap"} gap="xs">
           {displayedHistory.map((item) => (
             <Button
-              key={item.itemId}
+              key={item.id}
               component={RouterLink}
-              to={`/item/${item.itemId}`}
+              to={`/item/${item.id}`}
               variant="light"
               size="xs"
               color="gray"
               style={{
-                backgroundColor: getItemColor(item.type),
+                backgroundColor: getEntityColor(item.typeSlug),
                 color: "#000",
                 border: "1px solid #dee2e6",
               }}
             >
-              {item.word}
+              {item.primaryLabel}
             </Button>
           ))}
         </Group>

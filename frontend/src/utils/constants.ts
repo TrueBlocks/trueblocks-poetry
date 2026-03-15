@@ -3,7 +3,7 @@ import { LogError } from "@utils/logger";
 export const Patterns = {
   // Default values matching backend pkg/parser/parser.go
   // These will be updated from the backend on app startup
-  ReferenceTag: /\{(word|writer|title):\s*([^}]+)\}/gi,
+  ReferenceTag: /\{([a-zA-Z0-9_]+):\s*([^}]+)\}/gi,
   GenericTag: /\{([a-zA-Z0-9_]+):\s*([^}]+)\}/gi,
 };
 
