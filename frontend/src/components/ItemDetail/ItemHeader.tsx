@@ -2,24 +2,24 @@ import { Link, useNavigate } from "react-router-dom";
 import { Group, Title, Button, Badge, ActionIcon } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
-  ArrowLeft,
-  Edit,
-  Trash2,
-  Network,
-  Sparkles,
-  PilcrowIcon,
-  Copy,
-  Check,
-  Volume2,
-} from "lucide-react";
+  IconArrowLeft,
+  IconEdit,
+  IconTrash,
+  IconNetwork,
+  IconSparkles,
+  IconPilcrow,
+  IconCopy,
+  IconCheck,
+  IconVolume,
+} from "@tabler/icons-react";
 import { BrowserOpenURL } from "@wailsjs/runtime/runtime.js";
 import { getEntityColor } from "@utils/colors";
-import { database } from "@models";
+import { db } from "@models";
 
 interface ItemHeaderProps {
-  item: database.Entity;
+  item: db.Entity;
   itemId: string;
-  links: database.Relationship[] | null;
+  links: db.Relationship[] | null;
   revealMarkdown: boolean;
   onToggleRevealMarkdown: () => void;
   onDelete: () => void;
@@ -54,14 +54,14 @@ export function ItemHeader({
           <Group gap="md">
             <Button
               variant="subtle"
-              leftSection={<ArrowLeft size={18} />}
+              leftSection={<IconArrowLeft size={18} />}
               onClick={() => navigate(-1)}
             >
               Back
             </Button>
             <Button
               variant="subtle"
-              leftSection={<Sparkles size={18} />}
+              leftSection={<IconSparkles size={18} />}
               onClick={() => {
                 let query = "";
                 const type = item?.typeSlug || "";
@@ -83,7 +83,7 @@ export function ItemHeader({
             </Button>
             <Button
               variant={revealMarkdown ? "filled" : "subtle"}
-              leftSection={<PilcrowIcon size={18} />}
+              leftSection={<IconPilcrow size={18} />}
               onClick={onToggleRevealMarkdown}
               title="Show/hide markdown formatting"
             >
@@ -94,13 +94,13 @@ export function ItemHeader({
             <Button
               component={Link}
               to={`/item/${itemId}/edit`}
-              leftSection={<Edit size={16} />}
+              leftSection={<IconEdit size={16} />}
             >
               Edit
             </Button>
             <Button
               color="red"
-              leftSection={<Trash2 size={16} />}
+              leftSection={<IconTrash size={16} />}
               onClick={onDelete}
               loading={deleteLoading}
               disabled={
@@ -138,11 +138,11 @@ export function ItemHeader({
               title: "Copied!",
               message: `"${item.primaryLabel}" copied to clipboard`,
               color: "green",
-              icon: <Check size={16} />,
+              icon: <IconCheck size={16} />,
             });
           }}
         >
-          <Copy size={20} />
+          <IconCopy size={20} />
         </ActionIcon>
         <ActionIcon
           size="lg"
@@ -152,7 +152,7 @@ export function ItemHeader({
           component={Link}
           to={`/item/${itemId}?tab=graph`}
         >
-          <Network size={20} />
+          <IconNetwork size={20} />
         </ActionIcon>
       </Group>
       <Group gap="sm">
@@ -173,7 +173,7 @@ export function ItemHeader({
             title="Pronounce word"
             onClick={onSpeakWord}
           >
-            <Volume2 size={22} />
+            <IconVolume size={22} />
           </ActionIcon>
         )}
         {item.typeSlug === "Title" &&
@@ -186,7 +186,7 @@ export function ItemHeader({
               title="Read quoted text"
               onClick={onSpeakQuote}
             >
-              <Volume2 size={22} />
+              <IconVolume size={22} />
             </ActionIcon>
           )}
       </Group>

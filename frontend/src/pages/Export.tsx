@@ -11,7 +11,12 @@ import {
   Stack,
   Alert,
 } from "@mantine/core";
-import { Download, FileJson, FileText, FolderOpen } from "lucide-react";
+import {
+  IconDownload,
+  IconFileCode,
+  IconFileText,
+  IconFolderOpen,
+} from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { LogError } from "@utils/logger";
 
@@ -23,7 +28,7 @@ export default function Export() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const { GetSettings } = await import("../../wailsjs/go/main/App.js");
+        const { GetSettings } = await import("../../wailsjs/go/app/App");
         const settings = await GetSettings();
         setExportFolder(settings.exportFolder || "");
       } catch (error) {
@@ -37,8 +42,7 @@ export default function Export() {
 
   const selectFolder = async () => {
     try {
-      const { SelectExportFolder } =
-        await import("../../wailsjs/go/main/App.js");
+      const { SelectExportFolder } = await import("../../wailsjs/go/app/App");
       const folder = await SelectExportFolder();
 
       if (folder) {
@@ -66,8 +70,7 @@ export default function Export() {
 
     // Prompt user to select folder
     try {
-      const { SelectExportFolder } =
-        await import("../../wailsjs/go/main/App.js");
+      const { SelectExportFolder } = await import("../../wailsjs/go/app/App");
       const folder = await SelectExportFolder();
 
       if (folder) {
@@ -98,7 +101,7 @@ export default function Export() {
     }
     setExporting(true);
     try {
-      const { ExportToJSON } = await import("../../wailsjs/go/main/App.js");
+      const { ExportToJSON } = await import("../../wailsjs/go/app/App");
       const filepath = await ExportToJSON();
 
       notifications.show({
@@ -125,7 +128,7 @@ export default function Export() {
 
     setExporting(true);
     try {
-      const { ExportToMarkdown } = await import("../../wailsjs/go/main/App.js");
+      const { ExportToMarkdown } = await import("../../wailsjs/go/app/App");
       const filepath = await ExportToMarkdown();
 
       notifications.show({
@@ -153,7 +156,7 @@ export default function Export() {
     setExporting(true);
     try {
       const { ExportToJSON, ExportToMarkdown } =
-        await import("../../wailsjs/go/main/App.js");
+        await import("../../wailsjs/go/app/App");
 
       // Export JSON
       await ExportToJSON();
@@ -210,7 +213,7 @@ export default function Export() {
 
           <Button
             onClick={selectFolder}
-            leftSection={<FolderOpen size={20} />}
+            leftSection={<IconFolderOpen size={20} />}
             variant="light"
           >
             {exportFolder ? "Change Folder" : "Select Folder"}
@@ -221,7 +224,7 @@ export default function Export() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
         <Card shadow="sm" padding="lg" radius="md" withBorder>
           <Group mb="md">
-            <FileJson size={32} />
+            <IconFileCode size={32} />
             <div>
               <Title order={3}>JSON Format</Title>
               <Text size="sm" c="dimmed">
@@ -248,7 +251,7 @@ export default function Export() {
             fullWidth
             onClick={exportJSON}
             loading={exporting}
-            leftSection={<Download size={20} />}
+            leftSection={<IconDownload size={20} />}
             color="blue"
           >
             Export as JSON
@@ -257,7 +260,7 @@ export default function Export() {
 
         <Card shadow="sm" padding="lg" radius="md" withBorder>
           <Group mb="md">
-            <FileText size={32} />
+            <IconFileText size={32} />
             <div>
               <Title order={3}>Markdown Format</Title>
               <Text size="sm" c="dimmed">
@@ -284,7 +287,7 @@ export default function Export() {
             fullWidth
             onClick={exportMarkdown}
             loading={exporting}
-            leftSection={<Download size={20} />}
+            leftSection={<IconDownload size={20} />}
             color="green"
           >
             Export as Markdown
@@ -307,7 +310,7 @@ export default function Export() {
           <Button
             onClick={exportBoth}
             loading={exporting}
-            leftSection={<Download size={18} />}
+            leftSection={<IconDownload size={18} />}
             size="md"
             variant="gradient"
             gradient={{ from: "blue", to: "teal", deg: 135 }}

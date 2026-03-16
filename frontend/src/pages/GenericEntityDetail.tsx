@@ -17,11 +17,11 @@ import {
   GetRelationshipsWithDetails,
 } from "@wailsjs/go/services/EntityService";
 import GenericRelationshipList from "@/components/GenericRelationshipList";
-import { database, services } from "@wailsjs/go/models";
+import { db, services } from "@wailsjs/go/models";
 
 export default function GenericEntityDetail() {
   const { type, id } = useParams<{ type: string; id: string }>();
-  const [entity, setEntity] = useState<database.Entity | null>(null);
+  const [entity, setEntity] = useState<db.Entity | null>(null);
   const [relationships, setRelationships] = useState<
     services.RelationshipDetail[]
   >([]);

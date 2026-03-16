@@ -1,19 +1,37 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useRef } from "react";
 import { Group, Text } from "@mantine/core";
-import { GetSettings, GetEntity } from "@wailsjs/go/main/App.js";
+import { GetSettings, GetEntity } from "@wailsjs/go/app/App";
 
 export default function Footer() {
-  const { data: settings } = useQuery({
-    queryKey: ["allSettings"],
-    queryFn: GetSettings,
-    refetchInterval: 500,
-  });
+  const [settings, setSettings] = useState<{
+    lastWordId?: number;
+    currentSearch?: string;
+  } | null>(null);
+  const [currentItem, setCurrentItem] = useState<{
+    primaryLabel?: string;
+  } | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { data: currentItem } = useQuery({
-    queryKey: ["currentItem", settings?.lastWordId],
-    queryFn: () => GetEntity(settings!.lastWordId),
-    enabled: !!settings?.lastWordId && settings.lastWordId > 0,
-  });
+  useEffect(() => {
+    const loadSettings = () => {
+      GetSettings()
+        .then(setSettings)
+        .catch(() => {});
+    };
+    loadSettings();
+    intervalRef.current = setInterval(loadSettings, 500);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (settings?.lastWordId && settings.lastWordId > 0) {
+      GetEntity(settings.lastWordId)
+        .then(setCurrentItem)
+        .catch(() => {});
+    }
+  }, [settings?.lastWordId]);
 
   let currentItemDisplay = "None - Select an item";
   if (currentItem?.primaryLabel) {

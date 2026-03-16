@@ -1,20 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Container, Title, Tabs, Loader, Center } from "@mantine/core";
-import { Settings as SettingsIcon, Wrench, FileJson } from "lucide-react";
+import { IconSettings, IconTool, IconFileCode } from "@tabler/icons-react";
 import { GeneralSettings } from "@components/Settings/GeneralSettings";
 import { MaintenanceSettings } from "@components/Settings/MaintenanceSettings";
 import { ConfigEditor } from "@components/Settings/ConfigEditor";
-import { GetAllSettings } from "@wailsjs/go/main/App";
-import { useUIStore } from "@stores/useUIStore";
+import { GetAllSettings } from "@wailsjs/go/app/App";
+import { useUI } from "@/contexts/UIContext";
 
 export default function Settings() {
-  const { tabSelections, setTabSelection } = useUIStore();
+  const { tabSelections, setTabSelection } = useUI();
   const activeTab = tabSelections["settings"] || "general";
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { isLoading } = useQuery({
-    queryKey: ["allSettings"],
-    queryFn: GetAllSettings,
-  });
+  useEffect(() => {
+    GetAllSettings().finally(() => setIsLoading(false));
+  }, []);
 
   const handleTabChange = (value: string | null) => {
     if (value) {
@@ -43,13 +43,13 @@ export default function Settings() {
 
       <Tabs value={activeTab} onChange={handleTabChange}>
         <Tabs.List mb="md">
-          <Tabs.Tab value="general" leftSection={<SettingsIcon size={16} />}>
+          <Tabs.Tab value="general" leftSection={<IconSettings size={16} />}>
             General
           </Tabs.Tab>
-          <Tabs.Tab value="maintenance" leftSection={<Wrench size={16} />}>
+          <Tabs.Tab value="maintenance" leftSection={<IconTool size={16} />}>
             Maintenance
           </Tabs.Tab>
-          <Tabs.Tab value="config" leftSection={<FileJson size={16} />}>
+          <Tabs.Tab value="config" leftSection={<IconFileCode size={16} />}>
             Configuration
           </Tabs.Tab>
         </Tabs.List>

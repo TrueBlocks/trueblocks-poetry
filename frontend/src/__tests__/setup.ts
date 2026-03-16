@@ -24,7 +24,7 @@ vi.mock("../../wailsjs/runtime/runtime.js", () => ({
 }));
 
 // Mock Wails Go bindings
-vi.mock("../../wailsjs/go/main/App.js", () => ({
+vi.mock("../../wailsjs/go/app/App", () => ({
   GetAllItems: vi.fn(() => Promise.resolve([])),
   GetItem: vi.fn(() => Promise.resolve(null)),
   GetAllLinks: vi.fn(() => Promise.resolve([])),

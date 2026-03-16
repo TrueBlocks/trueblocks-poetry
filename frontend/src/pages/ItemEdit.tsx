@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Container,
   Title,
@@ -33,16 +32,16 @@ import {
 } from "@wailsjs/go/services/EntityService";
 import { appConfig } from "@/config";
 import {
-  ArrowLeft,
-  Save,
-  AlertCircle,
-  Check,
-  X,
-  Plus,
-  Image as ImageIcon,
-} from "lucide-react";
+  IconArrowLeft,
+  IconDeviceFloppy,
+  IconAlertCircle,
+  IconCheck,
+  IconX,
+  IconPlus,
+  IconPhoto,
+} from "@tabler/icons-react";
 import { useReferenceValidation } from "@hooks/useReferenceValidation";
-import { database } from "@models";
+import { db } from "@models";
 export default function ItemEdit({
   onSave,
   onCancel,
@@ -51,7 +50,6 @@ export default function ItemEdit({
   const isDark = colorScheme === "dark";
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const isNew = id === "new";
   const imageBoxRef = useRef<HTMLDivElement>(null);
 
@@ -93,29 +91,35 @@ export default function ItemEdit({
           sourcePg: "",
           mark: "",
         },
-      } as unknown as database.Entity);
-      queryClient.invalidateQueries({ queryKey: ["allEntities"] });
+      } as unknown as db.Entity);
       notifications.show({
         title: "Item Created",
         message: `Created "${primaryLabel}" as a new reference`,
         color: "green",
-        icon: <Check size={18} />,
+        icon: <IconCheck size={18} />,
       });
     } catch {
       notifications.show({
         title: "Error",
         message: `Failed to create "${primaryLabel}"`,
         color: "red",
-        icon: <X size={18} />,
+        icon: <IconX size={18} />,
       });
     }
   };
 
-  const { data: entity, isLoading: isLoadingEntity } = useQuery({
-    queryKey: ["entity", id],
-    queryFn: () => GetEntity(Number(id)),
-    enabled: !isNew,
-  });
+  const [entity, setEntity] = useState<db.Entity | null>(null);
+  const [isLoadingEntity, setIsLoadingEntity] = useState(!isNew);
+
+  useEffect(() => {
+    if (!isNew) {
+      setIsLoadingEntity(true);
+      GetEntity(Number(id))
+        .then(setEntity)
+        .catch(() => {})
+        .finally(() => setIsLoadingEntity(false));
+    }
+  }, [id, isNew]);
 
   useEffect(() => {
     if (entity) {
@@ -210,42 +214,40 @@ export default function ItemEdit({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const saveMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      try {
-        if (isNew || data.id === 0) {
-          // Generate a new item ID using current timestamp + random component
-          const newId = Date.now() + Math.floor(Math.random() * 1000);
-          await CreateEntity({
-            ...data,
-            id: newId,
-          } as unknown as database.Entity);
-          return { newId: newId };
-        } else {
-          await UpdateEntity(data as unknown as database.Entity);
-          return { id: Number(id) };
-        }
-      } catch (error) {
-        LogError(`Error in mutationFn: ${error}`);
-        throw error;
-      }
-    },
-    onSuccess: async (data: { newId?: number; id?: number }) => {
-      const savedId = data.newId || data.id || Number(id);
+  const [saveIsPending, setSaveIsPending] = useState(false);
+  const [saveError, setSaveError] = useState<Error | null>(null);
 
-      // Save or delete image based on current state
+  const doSaveRef = useRef<(data: typeof formData) => void>(() => {});
+
+  const doSave = async (data: typeof formData) => {
+    setSaveIsPending(true);
+    setSaveError(null);
+    try {
+      let result: { newId?: number; id?: number };
+      if (isNew || data.id === 0) {
+        const newId = Date.now() + Math.floor(Math.random() * 1000);
+        await CreateEntity({
+          ...data,
+          id: newId,
+        } as unknown as db.Entity);
+        result = { newId: newId };
+      } else {
+        await UpdateEntity(data as unknown as db.Entity);
+        result = { id: Number(id) };
+      }
+
+      const savedId = result.newId || result.id || Number(id);
+
       try {
         if (isImageLoading) {
           LogWarning(
             "Image is still loading, skipping image update to prevent accidental deletion",
           );
         } else if (pastedImage) {
-          // Save the new pasted image
           await SaveEntityImage(savedId, pastedImage);
           setCachedImage(pastedImage);
           setPastedImage(null);
         } else if (!pastedImage && !cachedImage) {
-          // Delete image if both are cleared
           await DeleteEntityImage(savedId);
         }
       } catch (error) {
@@ -256,34 +258,33 @@ export default function ItemEdit({
         title: isNew ? "Item Created" : "Item Saved",
         message: "Your changes have been saved successfully",
         color: "green",
-        icon: <Check size={18} />,
+        icon: <IconCheck size={18} />,
       });
-      queryClient.invalidateQueries({ queryKey: ["recentEntities"] });
       if (isNew) {
-        // Navigate to the newly created item
-        navigate(`/item/${data.newId || data.id}?tab=detail`);
+        navigate(`/item/${result.newId || result.id}?tab=detail`);
       } else {
-        queryClient.invalidateQueries({ queryKey: ["entity", id] });
         if (onSave) {
           onSave();
         } else {
           navigate(`/item/${id}?tab=detail`);
         }
       }
-    },
-    onError: (error: Error) => {
-      LogError(`Save failed: ${error}`);
-      LogError(`Full error object: ${error}`);
-      LogError(`Error message: ${error?.message}`);
-      LogError(`Error stack: ${error?.stack}`);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      setSaveError(err);
+      LogError(`Save failed: ${err}`);
       notifications.show({
         title: "Error Saving Item",
-        message: error?.message || String(error) || "Failed to save changes",
+        message: err?.message || String(err) || "Failed to save changes",
         color: "red",
-        icon: <X size={18} />,
+        icon: <IconX size={18} />,
       });
-    },
-  });
+    } finally {
+      setSaveIsPending(false);
+    }
+  };
+
+  doSaveRef.current = doSave;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -311,7 +312,7 @@ export default function ItemEdit({
         return;
       }
     }
-    saveMutation.mutate(formData);
+    doSave(formData);
   };
 
   // Keyboard shortcut for cmd+s to save
@@ -353,13 +354,13 @@ export default function ItemEdit({
             return;
           }
         }
-        saveMutation.mutate(formData);
+        doSaveRef.current(formData);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [formData, saveMutation]);
+  }, [formData]);
 
   if (isLoadingEntity) {
     return (
@@ -378,7 +379,7 @@ export default function ItemEdit({
           component={Link}
           to={isNew ? "/" : `/item/${id}?tab=detail`}
           variant="subtle"
-          leftSection={<ArrowLeft size={20} />}
+          leftSection={<IconArrowLeft size={20} />}
         >
           Back
         </Button>
@@ -388,15 +389,15 @@ export default function ItemEdit({
         <div />
       </Group>
 
-      {saveMutation.isError && (
+      {saveError && (
         <Alert
-          icon={<AlertCircle size={20} />}
+          icon={<IconAlertCircle size={20} />}
           title="Failed to save item"
           color="red"
           mb="md"
         >
-          {saveMutation.error?.message ||
-            String(saveMutation.error) ||
+          {saveError?.message ||
+            String(saveError) ||
             "An unknown error occurred"}
         </Alert>
       )}
@@ -469,7 +470,7 @@ export default function ItemEdit({
                     {getMissingReferences().length > 0 ? (
                       <Group gap="xs">
                         <Text size="sm" fw={500}>
-                          <AlertCircle
+                          <IconAlertCircle
                             size={16}
                             style={{ verticalAlign: "middle", marginRight: 4 }}
                           />
@@ -482,7 +483,7 @@ export default function ItemEdit({
                             size="sm"
                             variant="light"
                             rightSection={
-                              <Plus
+                              <IconPlus
                                 size={12}
                                 style={{ cursor: "pointer" }}
                                 onClick={() => handleCreateMissingEntity(ref)}
@@ -497,7 +498,7 @@ export default function ItemEdit({
                       getExistingReferences().length > 0 && (
                         <Group gap="xs">
                           <Text size="sm" fw={500}>
-                            <Check
+                            <IconCheck
                               size={16}
                               style={{
                                 verticalAlign: "middle",
@@ -667,7 +668,7 @@ export default function ItemEdit({
                     </Box>
                   ) : (
                     <Stack align="center" gap="xs">
-                      <ImageIcon
+                      <IconPhoto
                         size={48}
                         style={{
                           opacity: isFocused ? 0.8 : 0.3,
@@ -714,8 +715,8 @@ export default function ItemEdit({
               )}
               <Button
                 type="submit"
-                loading={saveMutation.isPending}
-                leftSection={<Save size={20} />}
+                loading={saveIsPending}
+                leftSection={<IconDeviceFloppy size={20} />}
               >
                 Save
               </Button>

@@ -10,19 +10,22 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { Link as RouterLink } from "react-router-dom";
-import { Network, ArrowRight, CheckSquare } from "lucide-react";
-import { database } from "@wailsjs/go/models";
-import { ToggleEntityMark } from "@wailsjs/go/main/App";
-import { useQueryClient } from "@tanstack/react-query";
+import {
+  IconNetwork,
+  IconArrowRight,
+  IconSquareCheck,
+} from "@tabler/icons-react";
+import { db } from "@wailsjs/go/models";
+import { ToggleEntityMark } from "@wailsjs/go/app/App";
 import { LogError } from "@utils/logger";
 
 interface HubsListProps {
-  hubs: database.Entity[] | null;
+  hubs: db.Entity[] | null;
   onToggle?: () => void;
+  onRefresh?: () => void;
 }
 
-export function HubsList({ hubs, onToggle }: HubsListProps) {
-  const queryClient = useQueryClient();
+export function HubsList({ hubs, onToggle, onRefresh }: HubsListProps) {
   const theme = useMantineTheme();
 
   if (!hubs || hubs.length === 0) return null;
@@ -34,8 +37,7 @@ export function HubsList({ hubs, onToggle }: HubsListProps) {
     const newMark = !currentMark;
     try {
       await ToggleEntityMark(itemId, newMark);
-      queryClient.invalidateQueries({ queryKey: ["topHubs"] });
-      queryClient.invalidateQueries({ queryKey: ["markedItems"] });
+      onRefresh?.();
     } catch (error) {
       LogError(`Failed to toggle mark: ${error}`);
     }
@@ -45,7 +47,7 @@ export function HubsList({ hubs, onToggle }: HubsListProps) {
     <Paper withBorder p="md" radius="md" h="100%">
       <Group mb="md" justify="space-between">
         <Group>
-          <Network size={20} />
+          <IconNetwork size={20} />
           <Text fw={500}>Top Connected Hubs</Text>
         </Group>
         {onToggle && (
@@ -53,8 +55,8 @@ export function HubsList({ hubs, onToggle }: HubsListProps) {
             checked={false}
             onChange={onToggle}
             size="xs"
-            onLabel={<CheckSquare size={12} color={theme.colors.blue[6]} />}
-            offLabel={<Network size={12} color={theme.colors.gray[6]} />}
+            onLabel={<IconSquareCheck size={12} color={theme.colors.blue[6]} />}
+            offLabel={<IconNetwork size={12} color={theme.colors.gray[6]} />}
           />
         )}
       </Group>
@@ -88,7 +90,7 @@ export function HubsList({ hubs, onToggle }: HubsListProps) {
                     to={`/item/${hub.id}`}
                     variant="subtle"
                     size="xs"
-                    rightSection={<ArrowRight size={14} />}
+                    rightSection={<IconArrowRight size={14} />}
                   >
                     Go
                   </Button>

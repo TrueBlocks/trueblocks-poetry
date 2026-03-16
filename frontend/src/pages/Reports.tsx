@@ -1,35 +1,28 @@
 import { Container, Title, Text, Stack } from "@mantine/core";
-import { useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { CheckpointDatabase } from "@wailsjs/go/main/App";
+import { useEffect, useState } from "react";
+import { CheckpointDatabase } from "@wailsjs/go/app/App";
 import { LinkIntegrityReport, ItemHealthReport } from "@components/Reports";
 import { LogError } from "@utils/logger";
 
 export default function Reports() {
-  const queryClient = useQueryClient();
+  const [reloadKey, setReloadKey] = useState(0);
 
-  // Add keyboard shortcut for Cmd+R to reload
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "r") {
         e.preventDefault();
-        // Checkpoint database before reloading
         try {
           await CheckpointDatabase();
         } catch (error) {
           LogError(`Failed to checkpoint database: ${error}`);
         }
-        queryClient.invalidateQueries({ queryKey: ["unlinkedReferences"] });
-        queryClient.invalidateQueries({ queryKey: ["duplicateItems"] });
-        queryClient.invalidateQueries({ queryKey: ["orphanedItems"] });
-        queryClient.invalidateQueries({ queryKey: ["linkedNotInDef"] });
-        queryClient.invalidateQueries({ queryKey: ["danglingLinks"] });
+        setReloadKey((k) => k + 1);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [queryClient]);
+  }, []);
 
   return (
     <Container size="100%" py="xl" px="xl">
@@ -41,8 +34,8 @@ export default function Reports() {
           <Text c="dimmed">Data quality and analysis reports</Text>
         </div>
 
-        <LinkIntegrityReport />
-        <ItemHealthReport />
+        <LinkIntegrityReport key={`link-${reloadKey}`} />
+        <ItemHealthReport key={`health-${reloadKey}`} />
       </Stack>
     </Container>
   );

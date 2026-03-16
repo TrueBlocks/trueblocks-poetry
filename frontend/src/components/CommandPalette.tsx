@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Command } from "cmdk";
-import { Search, Home, Network, Plus, FileText } from "lucide-react";
-import { SearchEntities } from "@wailsjs/go/main/App.js";
-import { useQuery } from "@tanstack/react-query";
-import { database } from "@models";
+import {
+  IconSearch,
+  IconHome,
+  IconNetwork,
+  IconPlus,
+  IconFileText,
+} from "@tabler/icons-react";
+import { SearchEntities } from "@wailsjs/go/app/App";
+import { db } from "@models";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -17,12 +22,17 @@ export default function CommandPalette({
 }: CommandPaletteProps) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<db.Entity[] | null>(null);
 
-  const { data: searchResults } = useQuery({
-    queryKey: ["command-search", search],
-    queryFn: () => SearchEntities(search, ""),
-    enabled: search.length > 2,
-  });
+  useEffect(() => {
+    if (search.length > 2) {
+      SearchEntities(search, "")
+        .then(setSearchResults)
+        .catch(() => {});
+    } else {
+      setSearchResults(null);
+    }
+  }, [search]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -82,7 +92,7 @@ export default function CommandPalette({
               padding: "0 1rem",
             }}
           >
-            <Search
+            <IconSearch
               size={20}
               style={{ color: "#9CA3AF", marginRight: "0.75rem" }}
             />
@@ -126,7 +136,7 @@ export default function CommandPalette({
                   cursor: "pointer",
                 }}
               >
-                <Home size={16} style={{ color: "#4B5563" }} />
+                <IconHome size={16} style={{ color: "#4B5563" }} />
                 <span>Dashboard</span>
               </Command.Item>
               <Command.Item
@@ -140,7 +150,7 @@ export default function CommandPalette({
                   cursor: "pointer",
                 }}
               >
-                <Search size={16} style={{ color: "#4B5563" }} />
+                <IconSearch size={16} style={{ color: "#4B5563" }} />
                 <span>Search</span>
               </Command.Item>
               <Command.Item
@@ -154,7 +164,7 @@ export default function CommandPalette({
                   cursor: "pointer",
                 }}
               >
-                <Network size={16} style={{ color: "#4B5563" }} />
+                <IconNetwork size={16} style={{ color: "#4B5563" }} />
                 <span>Graph View</span>
               </Command.Item>
             </Command.Group>
@@ -173,7 +183,7 @@ export default function CommandPalette({
                   cursor: "pointer",
                 }}
               >
-                <Plus size={16} style={{ color: "#4B5563" }} />
+                <IconPlus size={16} style={{ color: "#4B5563" }} />
                 <span>Create New Item</span>
               </Command.Item>
             </Command.Group>
@@ -183,7 +193,7 @@ export default function CommandPalette({
                 heading="Search Results"
                 style={{ padding: "0.5rem" }}
               >
-                {searchResults.slice(0, 10).map((item: database.Entity) => (
+                {searchResults.slice(0, 10).map((item: db.Entity) => (
                   <Command.Item
                     key={item.id}
                     onSelect={() =>
@@ -198,7 +208,7 @@ export default function CommandPalette({
                       cursor: "pointer",
                     }}
                   >
-                    <FileText
+                    <IconFileText
                       size={16}
                       style={{
                         color: "#4B5563",

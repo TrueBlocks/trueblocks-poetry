@@ -1,5 +1,5 @@
 import { Alert, Title, Text, Group, Badge } from "@mantine/core";
-import { AlertTriangle } from "lucide-react";
+import { IconAlertTriangle } from "@tabler/icons-react";
 
 interface ReferenceAnalysisProps {
   dataQuality: {
@@ -25,7 +25,7 @@ export function ReferenceAnalysis({
   }
 
   return (
-    <Alert color="yellow" icon={<AlertTriangle size={20} />} mt="md">
+    <Alert color="yellow" icon={<IconAlertTriangle size={20} />} mt="md">
       <Title order={3} size="md" mb="sm">
         Data Quality Issues
       </Title>

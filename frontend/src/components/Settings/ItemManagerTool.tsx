@@ -19,11 +19,16 @@ import {
   SearchEntities,
   UpdateEntity,
   DeleteEntity,
-} from "@wailsjs/go/main/App";
+} from "@wailsjs/go/app/App";
 import { LogInfo, LogError } from "@wailsjs/runtime/runtime";
-import { database } from "@wailsjs/go/models";
+import { db } from "@wailsjs/go/models";
 import { notifications } from "@mantine/notifications";
-import { AlertCircle, Check, Search, ArrowRight } from "lucide-react";
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconSearch,
+  IconArrowRight,
+} from "@tabler/icons-react";
 import { LogError as UtilsLogError } from "@utils/logger";
 
 const ITEM_TYPES = [
@@ -44,9 +49,9 @@ export function ItemManagerTool() {
   const [newTitle, setNewTitle] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [affectedItems, setAffectedItems] = useState<database.Entity[]>([]);
-  const [titleItem, setTitleItem] = useState<database.Entity | null>(null);
-  const [_, setTargetItem] = useState<database.Entity | null>(null);
+  const [affectedItems, setAffectedItems] = useState<db.Entity[]>([]);
+  const [titleItem, setTitleItem] = useState<db.Entity | null>(null);
+  const [_, setTargetItem] = useState<db.Entity | null>(null);
   const [isMerge, setIsMerge] = useState(false);
   const [executed, setExecuted] = useState(false);
   const [__, setExecutedCount] = useState(0);
@@ -111,7 +116,7 @@ export function ItemManagerTool() {
         oldType.toLowerCase(),
       );
 
-      let exactMatch: database.Entity | undefined;
+      let exactMatch: db.Entity | undefined;
       let currentOldType = oldType;
 
       if (titleResults && titleResults.length > 0) {
@@ -255,7 +260,7 @@ export function ItemManagerTool() {
           LogInfo(
             `Updating Source item: ${titleItem.primaryLabel} -> ${newTitle}`,
           );
-          const updatedTitleItem = new database.Entity({ ...titleItem });
+          const updatedTitleItem = new db.Entity({ ...titleItem });
           updatedTitleItem.primaryLabel = newTitle;
           updatedTitleItem.typeSlug = newType.toLowerCase();
 
@@ -288,7 +293,7 @@ export function ItemManagerTool() {
         // Skip if it's the source item (already handled)
         if (titleItem && item.id === titleItem.id) continue;
 
-        const updatedItem = new database.Entity({ ...item });
+        const updatedItem = new db.Entity({ ...item });
         let changed = false;
 
         if (updatedItem.description) {
@@ -412,7 +417,7 @@ export function ItemManagerTool() {
             onClick={handlePreview}
             loading={isPreviewing}
             disabled={!oldTitle || !newTitle}
-            leftSection={<Search size={16} />}
+            leftSection={<IconSearch size={16} />}
           >
             Preview Changes
           </Button>
@@ -431,7 +436,7 @@ export function ItemManagerTool() {
         </Group>
 
         {executed && (
-          <Alert icon={<Check size={16} />} title="Success" color="green">
+          <Alert icon={<IconCheck size={16} />} title="Success" color="green">
             Successfully {isMerge ? "merged" : "renamed"} item and updated
             references.
           </Alert>
@@ -439,7 +444,7 @@ export function ItemManagerTool() {
 
         {isMerge && !executed && (
           <Alert
-            icon={<AlertCircle size={16} />}
+            icon={<IconAlertCircle size={16} />}
             title="Merge Warning"
             color="yellow"
           >
@@ -462,7 +467,7 @@ export function ItemManagerTool() {
                   <Text size="sm">
                     {titleItem.primaryLabel} ({titleItem.typeSlug})
                   </Text>
-                  <ArrowRight size={16} />
+                  <IconArrowRight size={16} />
                   <Text size="sm">
                     {newTitle} ({newType})
                   </Text>

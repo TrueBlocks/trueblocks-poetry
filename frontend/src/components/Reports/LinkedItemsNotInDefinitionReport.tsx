@@ -8,33 +8,39 @@ import {
   Anchor,
   Button,
 } from "@mantine/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { useState } from "react";
-import { GetLinkedEntitiesNotInDescription } from "@wailsjs/go/main/App";
+import { useState, useEffect, useCallback } from "react";
+import { GetLinkedEntitiesNotInDescription } from "@wailsjs/go/app/App";
 import { DeleteRelationship } from "@wailsjs/go/services/EntityService";
-import { AlertTriangle } from "lucide-react";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { LinkedNotInDefResult } from "./types";
 import { LogError } from "@utils/logger";
 
 export function LinkedItemsNotInDefinitionReport() {
-  const queryClient = useQueryClient();
   const [deletingLink, setDeletingLink] = useState<string | null>(null);
+  const [linkedNotInDef, setLinkedNotInDef] = useState<
+    LinkedNotInDefResult[] | null
+  >(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: linkedNotInDef, isLoading } = useQuery({
-    queryKey: ["linkedNotInDef"],
-    queryFn: async () => {
-      const results = await GetLinkedEntitiesNotInDescription();
-      return results as LinkedNotInDefResult[];
-    },
-  });
+  const loadData = useCallback(() => {
+    setIsLoading(true);
+    GetLinkedEntitiesNotInDescription()
+      .then((results) => setLinkedNotInDef(results as LinkedNotInDefResult[]))
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleDeleteLink = async (relationshipId: number, label: string) => {
     setDeletingLink(String(relationshipId));
     try {
       await DeleteRelationship(relationshipId);
-      queryClient.invalidateQueries({ queryKey: ["linkedNotInDef"] });
+      loadData();
 
       notifications.show({
         title: "Link deleted",
@@ -68,7 +74,7 @@ export function LinkedItemsNotInDefinitionReport() {
       )}
 
       {!isLoading && linkedNotInDef && linkedNotInDef.length === 0 && (
-        <Alert color="green" icon={<AlertTriangle size={20} />}>
+        <Alert color="green" icon={<IconAlertTriangle size={20} />}>
           <Text fw={600}>All linked items are properly referenced!</Text>
           <Text size="sm">
             All items with links have those links referenced in their
@@ -79,7 +85,7 @@ export function LinkedItemsNotInDefinitionReport() {
 
       {!isLoading && linkedNotInDef && linkedNotInDef.length > 0 && (
         <>
-          <Alert color="yellow" icon={<AlertTriangle size={20} />}>
+          <Alert color="yellow" icon={<IconAlertTriangle size={20} />}>
             <Text fw={600}>
               Found {linkedNotInDef.length} items with unreferenced links
             </Text>

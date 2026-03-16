@@ -6,7 +6,7 @@ import {
   SearchEntities,
   HasEnvFile,
   GetConstants,
-} from "@wailsjs/go/main/App.js";
+} from "@wailsjs/go/app/App";
 import { updatePatterns } from "@utils/constants";
 import { LogError } from "@utils/logger";
 

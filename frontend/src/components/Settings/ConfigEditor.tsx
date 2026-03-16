@@ -18,19 +18,16 @@ import {
   JsonInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { GetAppConfigContent, SaveAppConfigContent } from "@wailsjs/go/app/App";
 import {
-  GetAppConfigContent,
-  SaveAppConfigContent,
-} from "@wailsjs/go/main/App";
-import {
-  AlertCircle,
-  Plus,
-  Trash,
-  Save,
-  RefreshCw,
-  Code,
-  LayoutList,
-} from "lucide-react";
+  IconAlertCircle,
+  IconPlus,
+  IconTrash,
+  IconDeviceFloppy,
+  IconRefresh,
+  IconCode,
+  IconLayoutList,
+} from "@tabler/icons-react";
 import { config } from "@wailsjs/go/models";
 
 export function ConfigEditor() {
@@ -167,7 +164,7 @@ export function ConfigEditor() {
           <Button.Group>
             <Button
               variant={mode === "form" ? "filled" : "default"}
-              leftSection={<LayoutList size={16} />}
+              leftSection={<IconLayoutList size={16} />}
               onClick={() => setMode("form")}
               disabled={!!error && mode === "json"}
             >
@@ -175,7 +172,7 @@ export function ConfigEditor() {
             </Button>
             <Button
               variant={mode === "json" ? "filled" : "default"}
-              leftSection={<Code size={16} />}
+              leftSection={<IconCode size={16} />}
               onClick={() => {
                 if (configData) {
                   setRawJson(JSON.stringify(configData, null, 2));
@@ -188,14 +185,14 @@ export function ConfigEditor() {
           </Button.Group>
           <Button
             variant="default"
-            leftSection={<RefreshCw size={16} />}
+            leftSection={<IconRefresh size={16} />}
             onClick={loadConfig}
             loading={loading}
           >
             Reload
           </Button>
           <Button
-            leftSection={<Save size={16} />}
+            leftSection={<IconDeviceFloppy size={16} />}
             onClick={handleSave}
             loading={loading}
           >
@@ -205,7 +202,7 @@ export function ConfigEditor() {
       </Group>
 
       {error && (
-        <Alert icon={<AlertCircle size={16} />} title="Error" color="red">
+        <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red">
           {error}
         </Alert>
       )}
@@ -259,7 +256,7 @@ export function ConfigEditor() {
                 <Title order={4}>Entity Types</Title>
                 <Button
                   size="xs"
-                  leftSection={<Plus size={14} />}
+                  leftSection={<IconPlus size={14} />}
                   onClick={addEntityType}
                 >
                   Add Entity Type
@@ -317,7 +314,7 @@ export function ConfigEditor() {
                             onClick={() => removeEntityType(index)}
                             mb={4}
                           >
-                            <Trash size={16} />
+                            <IconTrash size={16} />
                           </ActionIcon>
                         </Group>
 
@@ -387,7 +384,7 @@ export function ConfigEditor() {
                                 mt={24}
                                 onClick={() => removeField(index, fIndex)}
                               >
-                                <Trash size={16} />
+                                <IconTrash size={16} />
                               </ActionIcon>
                             </Group>
                             {field.type === "select" && (
@@ -410,7 +407,7 @@ export function ConfigEditor() {
                         <Button
                           variant="light"
                           size="xs"
-                          leftSection={<Plus size={14} />}
+                          leftSection={<IconPlus size={14} />}
                           onClick={() => addField(index)}
                         >
                           Add Field

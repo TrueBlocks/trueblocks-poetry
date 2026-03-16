@@ -1,3 +1,52 @@
+export namespace app {
+	
+	export class Capabilities {
+	    hasTts: boolean;
+	    hasImages: boolean;
+	    hasAi: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Capabilities(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hasTts = source["hasTts"];
+	        this.hasImages = source["hasImages"];
+	        this.hasAi = source["hasAi"];
+	    }
+	}
+	export class ImageCacheInfo {
+	    fileCount: number;
+	    totalSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageCacheInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fileCount = source["fileCount"];
+	        this.totalSize = source["totalSize"];
+	    }
+	}
+	export class TTSCacheInfo {
+	    fileCount: number;
+	    totalSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TTSCacheInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fileCount = source["fileCount"];
+	        this.totalSize = source["totalSize"];
+	    }
+	}
+
+}
+
 export namespace config {
 	
 	export class Field {
@@ -94,8 +143,20 @@ export namespace config {
 
 }
 
-export namespace database {
+export namespace db {
 	
+	export class DB {
+	
+	
+	    static createFrom(source: any = {}) {
+	        return new DB(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	
+	    }
+	}
 	export class DashboardStats {
 	    totalEntities: number;
 	    totalLinks: number;
@@ -193,55 +254,6 @@ export namespace database {
 
 }
 
-export namespace main {
-	
-	export class Capabilities {
-	    hasTts: boolean;
-	    hasImages: boolean;
-	    hasAi: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new Capabilities(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.hasTts = source["hasTts"];
-	        this.hasImages = source["hasImages"];
-	        this.hasAi = source["hasAi"];
-	    }
-	}
-	export class ImageCacheInfo {
-	    fileCount: number;
-	    totalSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new ImageCacheInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.fileCount = source["fileCount"];
-	        this.totalSize = source["totalSize"];
-	    }
-	}
-	export class TTSCacheInfo {
-	    fileCount: number;
-	    totalSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new TTSCacheInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.fileCount = source["fileCount"];
-	        this.totalSize = source["totalSize"];
-	    }
-	}
-
-}
-
 export namespace services {
 	
 	export class DanglingRelationshipResult {
@@ -320,6 +332,18 @@ export namespace services {
 		    return a;
 		}
 	}
+	export class EntityService {
+	
+	
+	    static createFrom(source: any = {}) {
+	        return new EntityService(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	
+	    }
+	}
 	export class EntityWithUnknownTypeResult {
 	    id: number;
 	    primaryLabel: string;
@@ -365,8 +389,8 @@ export namespace services {
 	    }
 	}
 	export class GraphData {
-	    nodes: database.Entity[];
-	    edges: database.Relationship[];
+	    nodes: db.Entity[];
+	    edges: db.Relationship[];
 	
 	    static createFrom(source: any = {}) {
 	        return new GraphData(source);
@@ -374,8 +398,8 @@ export namespace services {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.nodes = this.convertValues(source["nodes"], database.Entity);
-	        this.edges = this.convertValues(source["edges"], database.Relationship);
+	        this.nodes = this.convertValues(source["nodes"], db.Entity);
+	        this.edges = this.convertValues(source["edges"], db.Relationship);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -395,6 +419,18 @@ export namespace services {
 		    }
 		    return a;
 		}
+	}
+	export class ImageService {
+	
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageService(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	
+	    }
 	}
 	export class MissingReferenceDetail {
 	    label: string;
@@ -521,6 +557,18 @@ export namespace services {
 	        this.cached = source["cached"];
 	        this.error = source["error"];
 	        this.errorType = source["errorType"];
+	    }
+	}
+	export class TTSService {
+	
+	
+	    static createFrom(source: any = {}) {
+	        return new TTSService(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	
 	    }
 	}
 	export class UnknownTagResult {

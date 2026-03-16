@@ -3,7 +3,6 @@ import { render } from "@testing-library/react";
 import { DefinitionRenderer } from "../DefinitionRenderer";
 import { BrowserRouter } from "react-router-dom";
 import { MantineProvider } from "@mantine/core";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockItems = [
   {
@@ -29,21 +28,11 @@ const mockItems = [
 const mockStopAudio = vi.fn();
 const mockAudioRef = { current: null };
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-    },
-  },
-});
-
 const renderWithRouter = (component: React.ReactElement) => {
   return render(
-    <QueryClientProvider client={queryClient}>
-      <MantineProvider>
-        <BrowserRouter>{component}</BrowserRouter>
-      </MantineProvider>
-    </QueryClientProvider>,
+    <MantineProvider>
+      <BrowserRouter>{component}</BrowserRouter>
+    </MantineProvider>,
   );
 };
 

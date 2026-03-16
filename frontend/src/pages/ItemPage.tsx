@@ -1,35 +1,33 @@
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs } from "@mantine/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Network } from "lucide-react";
+import { IconBook, IconNetwork } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useEffect, useState } from "react";
 import ItemDetail from "./ItemDetail";
 import Graph from "./Graph";
 import ItemEdit from "./ItemEdit";
-import { GetSettings } from "@wailsjs/go/main/App.js";
 import { GetEntity, SearchEntities } from "@wailsjs/go/services/EntityService";
-import { useUIStore } from "@stores/useUIStore";
+import { useUI } from "@/contexts/UIContext";
 import { LogError } from "@utils/logger";
+import { db } from "@models";
 
 export default function ItemPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  useQueryClient();
   const isNewEntity = id === "new";
-  const { setLastWordId, tabSelections, setTabSelection } = useUIStore();
+  const { setLastWordId, tabSelections, setTabSelection } = useUI();
 
-  useQuery({
-    queryKey: ["allSettings"],
-    queryFn: GetSettings,
-  });
+  const [entity, setEntity] = useState<db.Entity | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const { data: entity, error } = useQuery({
-    queryKey: ["entity", id],
-    queryFn: () => GetEntity(Number(id)),
-    enabled: !!id && !isNewEntity,
-  });
+  useEffect(() => {
+    if (id && !isNewEntity) {
+      GetEntity(Number(id))
+        .then(setEntity)
+        .catch((e: Error) => setError(e.message));
+    }
+  }, [id, isNewEntity]);
 
   useEffect(() => {
     if (error && id && !isNewEntity) {
@@ -97,10 +95,10 @@ export default function ItemPage() {
   return (
     <Tabs value={activeTab} onChange={handleTabChange}>
       <Tabs.List>
-        <Tabs.Tab value="detail" leftSection={<BookOpen size={16} />}>
+        <Tabs.Tab value="detail" leftSection={<IconBook size={16} />}>
           Detail
         </Tabs.Tab>
-        <Tabs.Tab value="graph" leftSection={<Network size={16} />}>
+        <Tabs.Tab value="graph" leftSection={<IconNetwork size={16} />}>
           Graph
         </Tabs.Tab>
       </Tabs.List>

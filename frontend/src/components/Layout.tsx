@@ -10,21 +10,21 @@ import {
   Divider,
 } from "@mantine/core";
 import {
-  Home,
-  Search,
-  BookOpen,
-  Moon,
-  Sun,
-  Download,
-  Settings as SettingsIcon,
-  FileText,
-  Table2,
-  Beaker,
-} from "lucide-react";
+  IconHome,
+  IconSearch,
+  IconBook,
+  IconMoon,
+  IconSun,
+  IconDownload,
+  IconSettings,
+  IconFileText,
+  IconTable,
+  IconFlask,
+} from "@tabler/icons-react";
 import useDarkMode from "@hooks/useDarkMode";
 import Footer from "./Footer";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
-import { useUIStore } from "@stores/useUIStore";
+import { useUI } from "@/contexts/UIContext";
 import { appConfig } from "@/config";
 
 interface LayoutProps {
@@ -34,7 +34,7 @@ interface LayoutProps {
 export default function Layout({ stats }: LayoutProps) {
   const location = useLocation();
   const { isDark, toggle } = useDarkMode();
-  const { sidebarWidth, setSidebarWidth, lastWordId } = useUIStore();
+  const { sidebarWidth, setSidebarWidth, lastWordId } = useUI();
 
   // Icon-only mode when sidebar is narrower than 120px
   // Minimum width is 60px to accommodate icons
@@ -59,7 +59,7 @@ export default function Layout({ stats }: LayoutProps) {
           {showLabels ? (
             <>
               <Group>
-                <BookOpen />
+                <IconBook />
                 <Title order={3}>Poetry DB</Title>
               </Group>
               {stats && (
@@ -70,7 +70,7 @@ export default function Layout({ stats }: LayoutProps) {
             </>
           ) : (
             <Group justify="center">
-              <BookOpen />
+              <IconBook />
             </Group>
           )}
         </AppShell.Section>
@@ -83,7 +83,7 @@ export default function Layout({ stats }: LayoutProps) {
               component={Link}
               to="/"
               label={showLabels ? "Dashboard" : undefined}
-              leftSection={<Home size={20} />}
+              leftSection={<IconHome size={20} />}
               active={location.pathname === "/"}
               onClick={() => LogInfo("[Layout] Dashboard link clicked")}
             />
@@ -95,7 +95,7 @@ export default function Layout({ stats }: LayoutProps) {
                   : `/item/1?tab=detail`
               }
               label={showLabels ? "Item" : undefined}
-              leftSection={<BookOpen size={20} />}
+              leftSection={<IconBook size={20} />}
               active={location.pathname.startsWith("/item")}
               onClick={(e) => {
                 if (location.pathname.startsWith("/item")) {
@@ -107,35 +107,35 @@ export default function Layout({ stats }: LayoutProps) {
               component={Link}
               to="/search"
               label={showLabels ? "Search" : undefined}
-              leftSection={<Search size={20} />}
+              leftSection={<IconSearch size={20} />}
               active={location.pathname === "/search"}
             />
             <NavLink
               component={Link}
               to="/tables"
               label={showLabels ? "Tables" : undefined}
-              leftSection={<Table2 size={20} />}
+              leftSection={<IconTable size={20} />}
               active={location.pathname === "/tables"}
             />
             <NavLink
               component={Link}
               to="/reports"
               label={showLabels ? "Reports" : undefined}
-              leftSection={<FileText size={20} />}
+              leftSection={<IconFileText size={20} />}
               active={location.pathname === "/reports"}
             />
             <NavLink
               component={Link}
               to="/export"
               label={showLabels ? "Export" : undefined}
-              leftSection={<Download size={20} />}
+              leftSection={<IconDownload size={20} />}
               active={location.pathname === "/export"}
             />
             <NavLink
               component={Link}
               to="/settings"
               label={showLabels ? "Settings" : undefined}
-              leftSection={<SettingsIcon size={20} />}
+              leftSection={<IconSettings size={20} />}
               active={location.pathname === "/settings"}
             />
 
@@ -157,7 +157,7 @@ export default function Layout({ stats }: LayoutProps) {
                   component={Link}
                   to={`/entities/${type.slug}`}
                   label={showLabels ? type.displayName : undefined}
-                  leftSection={<Table2 size={20} />}
+                  leftSection={<IconTable size={20} />}
                   active={location.pathname.startsWith(
                     `/entities/${type.slug}`,
                   )}
@@ -168,7 +168,7 @@ export default function Layout({ stats }: LayoutProps) {
               component={Link}
               to="/experimental"
               label={showLabels ? "Experimental" : undefined}
-              leftSection={<Beaker size={20} />}
+              leftSection={<IconFlask size={20} />}
               active={location.pathname === "/experimental"}
               onClick={() => LogInfo("[Layout] Experimental link clicked")}
             />
@@ -184,9 +184,9 @@ export default function Layout({ stats }: LayoutProps) {
             leftSection={
               showLabels ? (
                 isDark ? (
-                  <Sun size={20} />
+                  <IconSun size={20} />
                 ) : (
-                  <Moon size={20} />
+                  <IconMoon size={20} />
                 )
               ) : undefined
             }
@@ -199,9 +199,9 @@ export default function Layout({ stats }: LayoutProps) {
                 "Dark Mode"
               )
             ) : isDark ? (
-              <Sun size={20} />
+              <IconSun size={20} />
             ) : (
-              <Moon size={20} />
+              <IconMoon size={20} />
             )}
           </Button>
         </AppShell.Section>

@@ -7,17 +7,21 @@ import {
   ActionIcon,
 } from "@mantine/core";
 import { Link as RouterLink } from "react-router-dom";
-import { History, ChevronDown, ChevronUp } from "lucide-react";
-import { database } from "@wailsjs/go/models";
+import {
+  IconHistory,
+  IconChevronDown,
+  IconChevronUp,
+} from "@tabler/icons-react";
+import { db } from "@wailsjs/go/models";
 import { getEntityColor } from "@utils/colors";
-import { useUIStore } from "@stores/useUIStore";
+import { useUI } from "@/contexts/UIContext";
 
 interface NavigationHistoryProps {
-  history: database.Entity[] | null;
+  history: db.Entity[] | null;
 }
 
 export function NavigationHistory({ history }: NavigationHistoryProps) {
-  const { recentPathCollapsed, setRecentPathCollapsed } = useUIStore();
+  const { recentPathCollapsed, setRecentPathCollapsed } = useUI();
 
   if (!history || history.length === 0) return null;
 
@@ -29,7 +33,7 @@ export function NavigationHistory({ history }: NavigationHistoryProps) {
     <Paper withBorder p="md" radius="md">
       <Group mb="md" justify="space-between">
         <Group>
-          <History size={20} />
+          <IconHistory size={20} />
           <Text fw={500}>Recent Path</Text>
         </Group>
         <ActionIcon
@@ -39,9 +43,9 @@ export function NavigationHistory({ history }: NavigationHistoryProps) {
           aria-label={!recentPathCollapsed ? "Collapse" : "Expand"}
         >
           {!recentPathCollapsed ? (
-            <ChevronUp size={16} />
+            <IconChevronUp size={16} />
           ) : (
-            <ChevronDown size={16} />
+            <IconChevronDown size={16} />
           )}
         </ActionIcon>
       </Group>

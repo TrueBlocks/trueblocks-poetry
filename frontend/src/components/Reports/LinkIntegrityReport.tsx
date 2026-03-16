@@ -1,10 +1,15 @@
 import { Tabs, Paper, Title, Text, Group, Collapse } from "@mantine/core";
-import { Link, EyeOff, Unlink, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  IconLink,
+  IconEyeOff,
+  IconUnlink,
+  IconChevronDown,
+  IconChevronRight,
+} from "@tabler/icons-react";
 import { UnlinkedReferencesReport } from "./UnlinkedReferencesReport";
 import { LinkedItemsNotInDefinitionReport } from "./LinkedItemsNotInDefinitionReport";
 import { DanglingLinksReport } from "./DanglingLinksReport";
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   GetUnlinkedReferences,
   GetLinkedEntitiesNotInDescription,
@@ -12,7 +17,7 @@ import {
   GetSettings,
   SaveReportLinkIntegrityCollapsed,
   SaveTabSelection,
-} from "@wailsjs/go/main/App";
+} from "@wailsjs/go/app/App";
 
 export function LinkIntegrityReport() {
   const [activeTab, setActiveTab] = useState<string | null>("missing");
@@ -33,34 +38,30 @@ export function LinkIntegrityReport() {
     await SaveReportLinkIntegrityCollapsed(newValue);
   };
 
-  const { data: unlinkedRefs } = useQuery({
-    queryKey: ["unlinkedReferences"],
-    queryFn: async () => {
-      const res = await GetUnlinkedReferences();
-      return res || [];
-    },
-  });
+  const [unlinkedRefs, setUnlinkedRefs] = useState<unknown[] | null>(null);
+  const [linkedNotInDef, setLinkedNotInDef] = useState<unknown[] | null>(null);
+  const [danglingLinks, setDanglingLinks] = useState<unknown[] | null>(null);
 
-  const { data: linkedNotInDef } = useQuery({
-    queryKey: ["linkedNotInDef"],
-    queryFn: async () => {
-      const res = await GetLinkedEntitiesNotInDescription();
-      return res || [];
-    },
-  });
-
-  const { data: danglingLinks } = useQuery({
-    queryKey: ["danglingLinks"],
-    queryFn: async () => {
-      const res = await GetDanglingRelationships();
-      return res || [];
-    },
-  });
+  useEffect(() => {
+    GetUnlinkedReferences()
+      .then((res) => setUnlinkedRefs(res || []))
+      .catch(() => {});
+    GetLinkedEntitiesNotInDescription()
+      .then((res) => setLinkedNotInDef(res || []))
+      .catch(() => {});
+    GetDanglingRelationships()
+      .then((res) => setDanglingLinks(res || []))
+      .catch(() => {});
+  }, []);
 
   return (
     <Paper p="lg" withBorder>
       <Group mb="md" style={{ cursor: "pointer" }} onClick={toggleCollapsed}>
-        {collapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
+        {collapsed ? (
+          <IconChevronRight size={20} />
+        ) : (
+          <IconChevronDown size={20} />
+        )}
         <div>
           <Title order={2} size="h3">
             Link Integrity
@@ -80,13 +81,13 @@ export function LinkIntegrityReport() {
           }}
         >
           <Tabs.List mb="md">
-            <Tabs.Tab value="missing" leftSection={<Link size={16} />}>
+            <Tabs.Tab value="missing" leftSection={<IconLink size={16} />}>
               Missing Links ({unlinkedRefs?.length || 0})
             </Tabs.Tab>
-            <Tabs.Tab value="hidden" leftSection={<EyeOff size={16} />}>
+            <Tabs.Tab value="hidden" leftSection={<IconEyeOff size={16} />}>
               Hidden Links ({linkedNotInDef?.length || 0})
             </Tabs.Tab>
-            <Tabs.Tab value="broken" leftSection={<Unlink size={16} />}>
+            <Tabs.Tab value="broken" leftSection={<IconUnlink size={16} />}>
               Broken Links ({danglingLinks?.length || 0})
             </Tabs.Tab>
           </Tabs.List>

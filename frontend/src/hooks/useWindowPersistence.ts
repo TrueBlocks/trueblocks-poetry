@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { SaveWindowPosition } from "@wailsjs/go/main/App";
+import { SaveWindowPosition } from "@wailsjs/go/app/App";
 import { WindowGetPosition, WindowGetSize } from "@wailsjs/runtime/runtime";
 import { LogError } from "@utils/logger";
 

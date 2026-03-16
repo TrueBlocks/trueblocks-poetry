@@ -1,16 +1,15 @@
 import { Tabs, Paper, Title, Text, Group, Collapse } from "@mantine/core";
 import {
-  Copy,
-  Ghost,
-  ChevronDown,
-  ChevronRight,
-  RefreshCw,
-} from "lucide-react";
+  IconCopy,
+  IconGhost,
+  IconChevronDown,
+  IconChevronRight,
+  IconRefresh,
+} from "@tabler/icons-react";
 import { DuplicateItemsReport } from "./DuplicateItemsReport";
 import { OrphanedItemsReport } from "./OrphanedItemsReport";
 import { SelfReferentialReport } from "./SelfReferentialReport";
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   GetDuplicateEntities,
   GetOrphanedEntities,
@@ -18,7 +17,7 @@ import {
   GetSettings,
   SaveReportItemHealthCollapsed,
   SaveTabSelection,
-} from "@wailsjs/go/main/App";
+} from "@wailsjs/go/app/App";
 
 export function ItemHealthReport() {
   const [activeTab, setActiveTab] = useState<string | null>("duplicates");
@@ -39,34 +38,30 @@ export function ItemHealthReport() {
     await SaveReportItemHealthCollapsed(newValue);
   };
 
-  const { data: duplicates } = useQuery({
-    queryKey: ["duplicateItems"],
-    queryFn: async () => {
-      const res = await GetDuplicateEntities();
-      return res || [];
-    },
-  });
+  const [duplicates, setDuplicates] = useState<unknown[] | null>(null);
+  const [orphans, setOrphans] = useState<unknown[] | null>(null);
+  const [selfRefs, setSelfRefs] = useState<unknown[] | null>(null);
 
-  const { data: orphans } = useQuery({
-    queryKey: ["orphanedItems"],
-    queryFn: async () => {
-      const res = await GetOrphanedEntities();
-      return res || [];
-    },
-  });
-
-  const { data: selfRefs } = useQuery({
-    queryKey: ["selfReferentialItems"],
-    queryFn: async () => {
-      const res = await GetSelfReferentialEntities();
-      return res || [];
-    },
-  });
+  useEffect(() => {
+    GetDuplicateEntities()
+      .then((res) => setDuplicates(res || []))
+      .catch(() => {});
+    GetOrphanedEntities()
+      .then((res) => setOrphans(res || []))
+      .catch(() => {});
+    GetSelfReferentialEntities()
+      .then((res) => setSelfRefs(res || []))
+      .catch(() => {});
+  }, []);
 
   return (
     <Paper p="lg" withBorder>
       <Group mb="md" style={{ cursor: "pointer" }} onClick={toggleCollapsed}>
-        {collapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
+        {collapsed ? (
+          <IconChevronRight size={20} />
+        ) : (
+          <IconChevronDown size={20} />
+        )}
         <div>
           <Title order={2} size="h3">
             Item Health
@@ -86,13 +81,13 @@ export function ItemHealthReport() {
           }}
         >
           <Tabs.List mb="md">
-            <Tabs.Tab value="duplicates" leftSection={<Copy size={16} />}>
+            <Tabs.Tab value="duplicates" leftSection={<IconCopy size={16} />}>
               Duplicate Items ({duplicates?.length || 0})
             </Tabs.Tab>
-            <Tabs.Tab value="orphans" leftSection={<Ghost size={16} />}>
+            <Tabs.Tab value="orphans" leftSection={<IconGhost size={16} />}>
               Orphaned Items ({orphans?.length || 0})
             </Tabs.Tab>
-            <Tabs.Tab value="selfrefs" leftSection={<RefreshCw size={16} />}>
+            <Tabs.Tab value="selfrefs" leftSection={<IconRefresh size={16} />}>
               Self References ({selfRefs?.length || 0})
             </Tabs.Tab>
           </Tabs.List>

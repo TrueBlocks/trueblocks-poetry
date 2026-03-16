@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { GetAllEntities } from "@wailsjs/go/services/EntityService";
 import { parseReferences } from "@utils/references";
-import { database } from "@models";
+import { db } from "@models";
 
 interface ValidationResult {
   reference: string;
@@ -15,11 +14,11 @@ export function useReferenceValidation(text: string, debounceMs: number = 500) {
     Map<string, ValidationResult>
   >(new Map());
   const [debouncedText, setDebouncedText] = useState(text);
+  const [allItems, setAllItems] = useState<db.Entity[] | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
 
-  // Debounce the text input
   useEffect(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -36,14 +35,12 @@ export function useReferenceValidation(text: string, debounceMs: number = 500) {
     };
   }, [text, debounceMs]);
 
-  // Fetch all items for validation
-  const { data: allItems } = useQuery({
-    queryKey: ["allItems"],
-    queryFn: GetAllEntities,
-    staleTime: 30000, // Cache for 30 seconds
-  });
+  useEffect(() => {
+    GetAllEntities()
+      .then(setAllItems)
+      .catch(() => {});
+  }, []);
 
-  // Validate references when debounced text or items change
   useEffect(() => {
     if (!debouncedText || !allItems) {
       setValidationResults(new Map());
@@ -55,7 +52,7 @@ export function useReferenceValidation(text: string, debounceMs: number = 500) {
 
     for (const ref of references) {
       const matchedItem = allItems.find(
-        (item: database.Entity) =>
+        (item: db.Entity) =>
           item.primaryLabel.toLowerCase() === ref.toLowerCase(),
       );
 

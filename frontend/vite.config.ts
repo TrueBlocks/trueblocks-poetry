@@ -21,6 +21,11 @@ export default defineConfig({
       "@wailsjs": path.resolve(__dirname, "./wailsjs"),
       "@models": path.resolve(__dirname, "./wailsjs/go/models"),
       "@runtime": path.resolve(__dirname, "./wailsjs/runtime"),
+      "@trueblocks/ui": path.resolve(__dirname, "../../packages/ui/src"),
+      "@trueblocks/scaffold": path.resolve(
+        __dirname,
+        "../../packages/scaffold/src",
+      ),
     },
   },
 });

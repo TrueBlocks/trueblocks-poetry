@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/TrueBlocks/trueblocks-poetry/pkg/constants"
+	"github.com/TrueBlocks/trueblocks-poetry/v2/pkg/constants"
 )
 
 var Log *slog.Logger

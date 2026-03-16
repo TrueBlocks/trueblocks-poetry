@@ -24,7 +24,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import useKeyboardShortcuts from "./hooks/useKeyboardShortcuts";
 import { useWindowPersistence } from "./hooks/useWindowPersistence";
 import { FirstRunModal } from "./components/FirstRunModal";
-import { useUIStore } from "./stores/useUIStore";
+import { UIProvider, useUI } from "./contexts/UIContext";
 import { useAppInitialization } from "./hooks/useAppInitialization";
 
 function AppContent({ initialPath }: { initialPath: string }) {
@@ -32,7 +32,7 @@ function AppContent({ initialPath }: { initialPath: string }) {
   const navigate = useNavigate();
   const location = useLocation();
   const hasNavigated = useRef(false);
-  const { setLastView } = useUIStore();
+  const { setLastView } = useUI();
 
   useKeyboardShortcuts(commandPaletteOpen, setCommandPaletteOpen);
   useWindowPersistence();
@@ -129,13 +129,15 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <AppContent initialPath={initialPath} />
-      <FirstRunModal
-        opened={firstRunModalOpen}
-        onClose={() => setFirstRunModalOpen(false)}
-      />
-    </BrowserRouter>
+    <UIProvider>
+      <BrowserRouter>
+        <AppContent initialPath={initialPath} />
+        <FirstRunModal
+          opened={firstRunModalOpen}
+          onClose={() => setFirstRunModalOpen(false)}
+        />
+      </BrowserRouter>
+    </UIProvider>
   );
 }
 

@@ -16,7 +16,6 @@ import {
   Checkbox,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
@@ -25,7 +24,7 @@ import {
   GetEntityImage,
   RunAdHocQuery,
   AddRecentSearch,
-} from "@wailsjs/go/main/App.js";
+} from "@wailsjs/go/app/App";
 import {
   GetEntity,
   UpdateEntity,
@@ -33,16 +32,16 @@ import {
   GetAllRelationships,
 } from "@wailsjs/go/services/EntityService";
 import { LogError } from "@wailsjs/runtime/runtime.js";
-import { database } from "@models";
+import { db } from "@models";
 import { LogError as UtilsLogError } from "@utils/logger";
 import {
-  ArrowUp,
-  ArrowDown,
-  ChevronsUpDown,
-  Search,
-  AlertTriangle,
-} from "lucide-react";
-import { useUIStore } from "@stores/useUIStore";
+  IconArrowUp,
+  IconArrowDown,
+  IconArrowsUpDown,
+  IconSearch,
+  IconAlertTriangle,
+} from "@tabler/icons-react";
+import { useUI } from "@/contexts/UIContext";
 
 // Table data can be any object type
 type TableData = Record<string, unknown>;
@@ -191,7 +190,6 @@ function SortableTable({
 }
 
 export default function Tables() {
-  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const {
     lastTable,
@@ -200,7 +198,7 @@ export default function Tables() {
     setTableSort,
     currentSearch,
     setCurrentSearch,
-  } = useUIStore();
+  } = useUI();
   const [selectedTable, setSelectedTable] = useState<string>(
     lastTable || "items",
   );
@@ -268,14 +266,38 @@ export default function Tables() {
     }
   }, [isSqlSearch, selectedTable]);
 
-  // Fetch settings
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: GetSettings,
-    refetchInterval: 500,
-  });
+  const [settings, setSettings] = useState<Awaited<
+    ReturnType<typeof GetSettings>
+  > | null>(null);
+  const [allEntities, setAllEntities] = useState<db.Entity[] | null>(null);
+  const [entitiesLoading, setEntitiesLoading] = useState(true);
+  const [allLinks, setAllLinks] = useState<db.Relationship[] | null>(null);
+  const [linksLoading, setLinksLoading] = useState(true);
+  const [allSources, setAllSources] = useState<unknown[] | null>(null);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [adHocResults, setAdHocResults] = useState<TableData[] | null>(null);
+  const [adHocLoading, setAdHocLoading] = useState(false);
+  const [adHocError, setAdHocError] = useState<string | null>(null);
+  const [clichesData, setClichesData] = useState<TableData[] | null>(null);
+  const [clichesLoading, setClichesLoading] = useState(false);
+  const [namesData, setNamesData] = useState<TableData[] | null>(null);
+  const [namesLoading, setNamesLoading] = useState(false);
+  const [literaryTermsData, setLiteraryTermsData] = useState<
+    TableData[] | null
+  >(null);
+  const [literaryTermsLoading, setLiteraryTermsLoading] = useState(false);
 
-  // Load search query from settings only once on mount/initial load
+  useEffect(() => {
+    const loadSettings = () => {
+      GetSettings()
+        .then(setSettings)
+        .catch(() => {});
+    };
+    loadSettings();
+    const interval = setInterval(loadSettings, 500);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (settings?.currentSearch !== undefined && !searchInitialized.current) {
       setSearchQuery(settings.currentSearch);
@@ -283,57 +305,74 @@ export default function Tables() {
     }
   }, [settings]);
 
-  // Fetch all entities
-  const { data: allEntities, isLoading: entitiesLoading } = useQuery({
-    queryKey: ["allEntities"],
-    queryFn: () => GetAllEntities(),
-  });
+  useEffect(() => {
+    setEntitiesLoading(true);
+    GetAllEntities()
+      .then(setAllEntities)
+      .catch(() => {})
+      .finally(() => setEntitiesLoading(false));
 
-  // Fetch all links
-  const { data: allLinks, isLoading: linksLoading } = useQuery({
-    queryKey: ["allLinks"],
-    queryFn: () => GetAllRelationships(),
-  });
+    setLinksLoading(true);
+    GetAllRelationships()
+      .then(setAllLinks)
+      .catch(() => {})
+      .finally(() => setLinksLoading(false));
+  }, []);
 
-  // Fetch all sources
-  const { data: allSources, isLoading: sourcesLoading } = useQuery({
-    queryKey: ["allSources"],
-    queryFn: () => GetAllSources(),
-    enabled: selectedTable === "sources",
-  });
+  useEffect(() => {
+    if (selectedTable === "sources") {
+      setSourcesLoading(true);
+      GetAllSources()
+        .then((s) => setAllSources(s as unknown as unknown[]))
+        .catch(() => {})
+        .finally(() => setSourcesLoading(false));
+    }
+  }, [selectedTable]);
 
-  // Fetch ad-hoc query results
-  const {
-    data: adHocResults,
-    isLoading: adHocLoading,
-    error: adHocError,
-  } = useQuery({
-    queryKey: ["adHocQuery", debouncedSearchQuery],
-    queryFn: () =>
-      isSqlSearch ? RunAdHocQuery(debouncedSearchQuery) : Promise.resolve([]),
-    enabled: selectedTable === "adhoc" && isSqlSearch,
-  });
+  const loadAdHocData = useCallback(() => {
+    if (selectedTable === "adhoc" && isSqlSearch) {
+      setAdHocLoading(true);
+      setAdHocError(null);
+      RunAdHocQuery(debouncedSearchQuery)
+        .then(setAdHocResults)
+        .catch((e: Error) => setAdHocError(e.message))
+        .finally(() => setAdHocLoading(false));
+    }
+  }, [selectedTable, isSqlSearch, debouncedSearchQuery]);
 
-  // Fetch legacy tables directly
-  const { data: clichesData, isLoading: clichesLoading } = useQuery({
-    queryKey: ["clichesTable"],
-    queryFn: () => RunAdHocQuery("SELECT * FROM cliches"),
-    enabled: selectedTable === "cliches",
-  });
+  useEffect(() => {
+    loadAdHocData();
+  }, [loadAdHocData]);
 
-  const { data: namesData, isLoading: namesLoading } = useQuery({
-    queryKey: ["namesTable"],
-    queryFn: () => RunAdHocQuery("SELECT * FROM names"),
-    enabled: selectedTable === "names",
-  });
+  useEffect(() => {
+    if (selectedTable === "cliches") {
+      setClichesLoading(true);
+      RunAdHocQuery("SELECT * FROM cliches")
+        .then(setClichesData)
+        .catch(() => {})
+        .finally(() => setClichesLoading(false));
+    }
+  }, [selectedTable]);
 
-  const { data: literaryTermsData, isLoading: literaryTermsLoading } = useQuery(
-    {
-      queryKey: ["literaryTermsTable"],
-      queryFn: () => RunAdHocQuery("SELECT * FROM literary_terms"),
-      enabled: selectedTable === "literaryTerms",
-    },
-  );
+  useEffect(() => {
+    if (selectedTable === "names") {
+      setNamesLoading(true);
+      RunAdHocQuery("SELECT * FROM names")
+        .then(setNamesData)
+        .catch(() => {})
+        .finally(() => setNamesLoading(false));
+    }
+  }, [selectedTable]);
+
+  useEffect(() => {
+    if (selectedTable === "literaryTerms") {
+      setLiteraryTermsLoading(true);
+      RunAdHocQuery("SELECT * FROM literary_terms")
+        .then(setLiteraryTermsData)
+        .catch(() => {})
+        .finally(() => setLiteraryTermsLoading(false));
+    }
+  }, [selectedTable]);
 
   const isLoading =
     entitiesLoading ||
@@ -466,19 +505,19 @@ export default function Tables() {
   const getSortIcon = (field: string) => {
     if (sortState.field1 === field) {
       return sortState.dir1 === "asc" ? (
-        <ArrowUp size={14} />
+        <IconArrowUp size={14} />
       ) : (
-        <ArrowDown size={14} />
+        <IconArrowDown size={14} />
       );
     }
     if (sortState.field2 === field) {
       return sortState.dir2 === "asc" ? (
-        <ArrowUp size={14} />
+        <IconArrowUp size={14} />
       ) : (
-        <ArrowDown size={14} />
+        <IconArrowDown size={14} />
       );
     }
-    return <ChevronsUpDown size={14} style={{ opacity: 0.3 }} />;
+    return <IconArrowsUpDown size={14} style={{ opacity: 0.3 }} />;
   };
 
   // Get sort indicator (1 or 2)
@@ -591,7 +630,7 @@ export default function Tables() {
               (row.attributes as Record<string, unknown>)?.source !== ""
             );
           case "poets": {
-            const entity = row as unknown as database.Entity;
+            const entity = row as unknown as db.Entity;
             if (typeSlug !== "writer") return false;
 
             // Check for image
@@ -753,12 +792,8 @@ export default function Tables() {
     async (id: number, currentMark: string | null) => {
       const newMark = currentMark === "1" ? "0" : "1";
       try {
-        // Clear table data immediately to prevent stale data display
         if (selectedTable === "adhoc") {
-          queryClient.setQueryData(["adHocQuery", debouncedSearchQuery], []);
-        } else if (selectedTable === "items") {
-          // For items table, we can't easily clear just one item, but we can force a loading state
-          // or just let the invalidation handle it. The user specifically mentioned "appending" which likely refers to adhoc results.
+          setAdHocResults([]);
         }
 
         const entity = await GetEntity(id);
@@ -767,17 +802,17 @@ export default function Tables() {
           entity.attributes.mark = newMark;
           await UpdateEntity(entity);
         }
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries({ queryKey: ["allItems"] });
-        queryClient.invalidateQueries({ queryKey: ["search"] });
+        GetAllEntities()
+          .then(setAllEntities)
+          .catch(() => {});
         if (selectedTable === "adhoc") {
-          queryClient.invalidateQueries({ queryKey: ["adHocQuery"] });
+          loadAdHocData();
         }
       } catch (error) {
         UtilsLogError(`Failed to toggle mark: ${error}`);
       }
     },
-    [selectedTable, queryClient, debouncedSearchQuery],
+    [selectedTable, loadAdHocData],
   );
 
   // Column definitions for each table
@@ -1284,7 +1319,7 @@ export default function Tables() {
                 <TextInput
                   ref={searchInputRef}
                   placeholder="Search table..."
-                  leftSection={<Search size={16} />}
+                  leftSection={<IconSearch size={16} />}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.currentTarget.value)}
                   onKeyDown={handleSearchKeyDown}
@@ -1309,7 +1344,7 @@ export default function Tables() {
 
               {selectedTable === "adhoc" && adHocError && (
                 <Alert
-                  icon={<AlertTriangle size={16} />}
+                  icon={<IconAlertTriangle size={16} />}
                   title="Query Error"
                   color="red"
                   variant="light"

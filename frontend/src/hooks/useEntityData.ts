@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { GetEntityImage, GetCapabilities } from "@wailsjs/go/main/App.js";
+import { GetEntityImage, GetCapabilities } from "@wailsjs/go/app/App";
 
 export function useEntityImage(entityId: number, entityType: string) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -19,8 +18,18 @@ export function useEntityImage(entityId: number, entityType: string) {
 }
 
 export function useCapabilities() {
-  return useQuery({
-    queryKey: ["capabilities"],
-    queryFn: GetCapabilities,
-  });
+  const [data, setData] = useState<Awaited<
+    ReturnType<typeof GetCapabilities>
+  > | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    GetCapabilities()
+      .then(setData)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return { data, isLoading: loading, error };
 }

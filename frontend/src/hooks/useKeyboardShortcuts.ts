@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { notifications } from "@mantine/notifications";
-import { GetSettings } from "@wailsjs/go/main/App.js";
+import { GetSettings } from "@wailsjs/go/app/App";
 import { LogError } from "@utils/logger";
 
 export default function useKeyboardShortcuts(
@@ -102,7 +102,7 @@ export default function useKeyboardShortcuts(
         const handleExport = async () => {
           try {
             const { SelectExportFolder, ExportToJSON, ExportToMarkdown } =
-              await import("../../wailsjs/go/main/App.js");
+              await import("../../wailsjs/go/app/App");
 
             // Check if folder is selected
             const settings = await GetSettings();

@@ -8,31 +8,35 @@ import {
   Anchor,
   Button,
 } from "@mantine/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   GetSelfReferentialEntities,
   GetEntity,
   UpdateEntity,
-} from "@wailsjs/go/main/App";
-import { AlertTriangle, Check } from "lucide-react";
+} from "@wailsjs/go/app/App";
+import { IconAlertTriangle, IconCheck } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { LogError } from "@utils/logger";
 import { SelfRefResult } from "./types";
-import { database } from "@wailsjs/go/models";
+import { db } from "@wailsjs/go/models";
 
 export function SelfReferentialReport() {
-  const queryClient = useQueryClient();
   const [fixingItem, setFixingItem] = useState<number | null>(null);
+  const [selfRefs, setSelfRefs] = useState<SelfRefResult[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: selfRefs, isLoading } = useQuery({
-    queryKey: ["selfReferentialItems"],
-    queryFn: async () => {
-      const results = await GetSelfReferentialEntities();
-      return results as SelfRefResult[];
-    },
-  });
+  const loadData = useCallback(() => {
+    setIsLoading(true);
+    GetSelfReferentialEntities()
+      .then((results) => setSelfRefs(results as SelfRefResult[]))
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleFix = async (itemResult: SelfRefResult) => {
     setFixingItem(itemResult.id);
@@ -53,7 +57,7 @@ export function SelfReferentialReport() {
 
       const replacement = primaryLabel; // Just the primaryLabel
 
-      const updatedItem = new database.Entity(item);
+      const updatedItem = new db.Entity(item);
       let changed = false;
 
       if (updatedItem.description) {
@@ -86,7 +90,7 @@ export function SelfReferentialReport() {
 
       if (changed) {
         await UpdateEntity(updatedItem);
-        queryClient.invalidateQueries({ queryKey: ["selfReferentialItems"] });
+        loadData();
         notifications.show({
           title: "Fixed",
           message: `Removed self-reference in ${item.primaryLabel}`,
@@ -126,14 +130,14 @@ export function SelfReferentialReport() {
       )}
 
       {!isLoading && selfRefs && selfRefs.length === 0 && (
-        <Alert color="green" icon={<Check size={20} />}>
+        <Alert color="green" icon={<IconCheck size={20} />}>
           <Text fw={600}>No self-referential items found!</Text>
         </Alert>
       )}
 
       {!isLoading && selfRefs && selfRefs.length > 0 && (
         <>
-          <Alert color="yellow" icon={<AlertTriangle size={20} />}>
+          <Alert color="yellow" icon={<IconAlertTriangle size={20} />}>
             <Text fw={600}>Found {selfRefs.length} self-referential items</Text>
             <Text size="sm">
               These items contain tags that reference themselves. Click

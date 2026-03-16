@@ -8,30 +8,34 @@ import {
   Anchor,
   Button,
 } from "@mantine/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   GetDuplicateEntities,
   MergeDuplicateEntities,
-} from "@wailsjs/go/main/App";
-import { AlertTriangle } from "lucide-react";
+} from "@wailsjs/go/app/App";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { DuplicateResult } from "./types";
 import { LogError } from "@utils/logger";
 
 export function DuplicateItemsReport() {
-  const queryClient = useQueryClient();
   const [deletingDuplicates, setDeletingDuplicates] = useState<string | null>(
     null,
   );
+  const [duplicates, setDuplicates] = useState<DuplicateResult[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: duplicates, isLoading } = useQuery({
-    queryKey: ["duplicateItems"],
-    queryFn: async () => {
-      const results = await GetDuplicateEntities();
-      return results as DuplicateResult[];
-    },
-  });
+  const loadData = useCallback(() => {
+    setIsLoading(true);
+    GetDuplicateEntities()
+      .then((results) => setDuplicates(results as DuplicateResult[]))
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleDeleteDuplicates = async (
     originalId: number,
@@ -41,9 +45,7 @@ export function DuplicateItemsReport() {
     setDeletingDuplicates(strippedLabel);
     try {
       await MergeDuplicateEntities(originalId, duplicateIds);
-      queryClient.invalidateQueries({ queryKey: ["duplicateItems"] });
-      queryClient.invalidateQueries({ queryKey: ["unlinkedReferences"] });
-      queryClient.invalidateQueries({ queryKey: ["orphanedItems"] });
+      loadData();
     } catch (error) {
       LogError(`Failed to merge duplicates: ${error}`);
     } finally {
@@ -66,7 +68,7 @@ export function DuplicateItemsReport() {
       )}
 
       {!isLoading && duplicates && duplicates.length === 0 && (
-        <Alert color="green" icon={<AlertTriangle size={20} />}>
+        <Alert color="green" icon={<IconAlertTriangle size={20} />}>
           <Text fw={600}>No duplicate items found!</Text>
           <Text size="sm">
             All items have unique names after stripping possessives.
@@ -76,7 +78,7 @@ export function DuplicateItemsReport() {
 
       {!isLoading && duplicates && duplicates.length > 0 && (
         <>
-          <Alert color="yellow" icon={<AlertTriangle size={20} />}>
+          <Alert color="yellow" icon={<IconAlertTriangle size={20} />}>
             <Text fw={600}>
               Found {duplicates.length} sets of duplicate items
             </Text>

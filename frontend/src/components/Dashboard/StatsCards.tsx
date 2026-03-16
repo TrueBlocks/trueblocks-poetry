@@ -1,15 +1,15 @@
 import { SimpleGrid, Paper, Text, Group, ThemeIcon } from "@mantine/core";
 import {
-  TrendingUp,
-  Link as LinkIcon,
-  Quote,
-  Book,
-  Feather,
-  Heading,
-  Type,
-  AlertTriangle,
-  PenTool,
-} from "lucide-react";
+  IconTrendingUp,
+  IconLink as IconLinkIcon,
+  IconQuote,
+  IconBook,
+  IconFeather,
+  IconHeading,
+  IconTypography,
+  IconAlertTriangle,
+  IconPencil,
+} from "@tabler/icons-react";
 import { Link } from "react-router-dom";
 
 export interface DashboardStats {
@@ -35,42 +35,42 @@ export function StatsCards({ stats }: StatsCardsProps) {
     {
       title: "Total Items",
       value: stats.totalEntities || 0,
-      icon: TrendingUp,
+      icon: IconTrendingUp,
       color: "blue",
       to: "/tables?table=items",
     },
     {
       title: "Poems",
       value: stats.quoteCount || 0,
-      icon: Quote,
+      icon: IconQuote,
       color: "grape",
       to: "/tables?table=items&filter=quotes",
     },
     {
       title: "Writers",
       value: stats.writerCount || 0,
-      icon: Feather,
+      icon: IconFeather,
       color: "pink",
       to: "/tables?table=items&filter=writer",
     },
     {
       title: "Words",
       value: stats.wordCount || 0,
-      icon: Type,
+      icon: IconTypography,
       color: "indigo",
       to: "/tables?table=items&filter=reference",
     },
     {
       title: "Total Links",
       value: stats.totalLinks || 0,
-      icon: LinkIcon,
+      icon: IconLinkIcon,
       color: "cyan",
       to: "/tables?table=links",
     },
     {
       title: "Sourced",
       value: stats.citedCount || 0,
-      icon: Book,
+      icon: IconBook,
       color: "green",
       to: "/tables?table=items&filter=cited",
       disabled: true,
@@ -78,7 +78,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
     {
       title: "Poets",
       value: stats.poetCount || 0,
-      icon: PenTool,
+      icon: IconPencil,
       color: "teal",
       to: "/tables?table=items&filter=poets",
       disabled: false,
@@ -86,14 +86,14 @@ export function StatsCards({ stats }: StatsCardsProps) {
     {
       title: "Titles",
       value: stats.titleCount || 0,
-      icon: Heading,
+      icon: IconHeading,
       color: "violet",
       to: "/tables?table=items&filter=title",
     },
     {
       title: "Errors",
       value: stats.errorCount || 0,
-      icon: AlertTriangle,
+      icon: IconAlertTriangle,
       color: "red",
       to: "/reports",
     },

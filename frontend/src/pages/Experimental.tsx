@@ -1,6 +1,6 @@
 import { Container, Title, Text, Tabs, Paper, Stack } from "@mantine/core";
-import { Beaker } from "lucide-react";
-import { useUIStore } from "@stores/useUIStore";
+import { IconFlask } from "@tabler/icons-react";
+import { useUI } from "@/contexts/UIContext";
 
 const FEATURES = {
   pathfind: "Pathfind",
@@ -17,7 +17,7 @@ const FEATURES = {
 } as const;
 
 export default function Experimental() {
-  const { tabSelections, setTabSelection } = useUIStore();
+  const { tabSelections, setTabSelection } = useUI();
   const activeTab = tabSelections["experimental"] || "pathfind";
 
   const handleTabChange = (value: string | null) => {
@@ -38,37 +38,40 @@ export default function Experimental() {
 
         <Tabs value={activeTab} onChange={handleTabChange}>
           <Tabs.List mb="md">
-            <Tabs.Tab value="pathfind" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="pathfind" leftSection={<IconFlask size={16} />}>
               {FEATURES.pathfind}
             </Tabs.Tab>
-            <Tabs.Tab value="analyzer" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="analyzer" leftSection={<IconFlask size={16} />}>
               {FEATURES.analyzer}
             </Tabs.Tab>
-            <Tabs.Tab value="semantic" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="semantic" leftSection={<IconFlask size={16} />}>
               {FEATURES.semantic}
             </Tabs.Tab>
-            <Tabs.Tab value="workshop" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="workshop" leftSection={<IconFlask size={16} />}>
               {FEATURES.workshop}
             </Tabs.Tab>
-            <Tabs.Tab value="dreamscapes" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="dreamscapes" leftSection={<IconFlask size={16} />}>
               {FEATURES.dreamscapes}
             </Tabs.Tab>
-            <Tabs.Tab value="synesthetic" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="synesthetic" leftSection={<IconFlask size={16} />}>
               {FEATURES.synesthetic}
             </Tabs.Tab>
-            <Tabs.Tab value="resurrection" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab
+              value="resurrection"
+              leftSection={<IconFlask size={16} />}
+            >
               {FEATURES.resurrection}
             </Tabs.Tab>
-            <Tabs.Tab value="quantum" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="quantum" leftSection={<IconFlask size={16} />}>
               {FEATURES.quantum}
             </Tabs.Tab>
-            <Tabs.Tab value="archaeology" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="archaeology" leftSection={<IconFlask size={16} />}>
               {FEATURES.archaeology}
             </Tabs.Tab>
-            <Tabs.Tab value="sculptures" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="sculptures" leftSection={<IconFlask size={16} />}>
               {FEATURES.sculptures}
             </Tabs.Tab>
-            <Tabs.Tab value="weaver" leftSection={<Beaker size={16} />}>
+            <Tabs.Tab value="weaver" leftSection={<IconFlask size={16} />}>
               {FEATURES.weaver}
             </Tabs.Tab>
           </Tabs.List>

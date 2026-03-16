@@ -10,26 +10,28 @@ import {
   Checkbox,
 } from "@mantine/core";
 import { Link as RouterLink } from "react-router-dom";
-import { CheckSquare, ArrowRight, Network } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { database } from "@wailsjs/go/models";
-import { ToggleEntityMark } from "@wailsjs/go/main/App";
+import {
+  IconSquareCheck,
+  IconArrowRight,
+  IconNetwork,
+} from "@tabler/icons-react";
+import { db } from "@wailsjs/go/models";
+import { ToggleEntityMark } from "@wailsjs/go/app/App";
 import { LogError } from "@utils/logger";
 
 interface WorkbenchProps {
-  items: database.Entity[] | null;
+  items: db.Entity[] | null;
   onToggle?: () => void;
+  onRefresh?: () => void;
 }
 
-export function Workbench({ items, onToggle }: WorkbenchProps) {
+export function Workbench({ items, onToggle, onRefresh }: WorkbenchProps) {
   const theme = useMantineTheme();
-  const queryClient = useQueryClient();
 
   const handleUnmark = async (itemId: number) => {
     try {
       await ToggleEntityMark(itemId, false);
-      queryClient.invalidateQueries({ queryKey: ["markedItems"] });
-      queryClient.invalidateQueries({ queryKey: ["allItems"] });
+      onRefresh?.();
     } catch (error) {
       LogError(`Failed to unmark item: ${error}`);
     }
@@ -39,7 +41,7 @@ export function Workbench({ items, onToggle }: WorkbenchProps) {
     <Paper withBorder p="md" radius="md" h="100%">
       <Group mb="md" justify="space-between">
         <Group>
-          <CheckSquare size={20} />
+          <IconSquareCheck size={20} />
           <Text fw={500}>Workbench (Marked Items)</Text>
         </Group>
         <Group>
@@ -51,8 +53,10 @@ export function Workbench({ items, onToggle }: WorkbenchProps) {
               checked={true}
               onChange={onToggle}
               size="xs"
-              onLabel={<CheckSquare size={12} color={theme.colors.blue[6]} />}
-              offLabel={<Network size={12} color={theme.colors.gray[6]} />}
+              onLabel={
+                <IconSquareCheck size={12} color={theme.colors.blue[6]} />
+              }
+              offLabel={<IconNetwork size={12} color={theme.colors.gray[6]} />}
             />
           )}
         </Group>
@@ -86,7 +90,7 @@ export function Workbench({ items, onToggle }: WorkbenchProps) {
                       to={`/item/${item.id}`}
                       variant="subtle"
                       size="xs"
-                      rightSection={<ArrowRight size={14} />}
+                      rightSection={<IconArrowRight size={14} />}
                     >
                       Go
                     </Button>

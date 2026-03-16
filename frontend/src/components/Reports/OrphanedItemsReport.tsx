@@ -7,20 +7,24 @@ import {
   Badge,
   Anchor,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { GetOrphanedEntities } from "@wailsjs/go/main/App";
-import { AlertTriangle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { GetOrphanedEntities } from "@wailsjs/go/app/App";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { OrphanedItemResult } from "./types";
 
 export function OrphanedItemsReport() {
-  const { data: orphanedItems, isLoading } = useQuery({
-    queryKey: ["orphanedItems"],
-    queryFn: async () => {
-      const results = await GetOrphanedEntities();
-      return results as OrphanedItemResult[];
-    },
-  });
+  const [orphanedItems, setOrphanedItems] = useState<
+    OrphanedItemResult[] | null
+  >(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    GetOrphanedEntities()
+      .then((results) => setOrphanedItems(results as OrphanedItemResult[]))
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
 
   return (
     <Stack gap="md">
@@ -37,7 +41,7 @@ export function OrphanedItemsReport() {
       )}
 
       {!isLoading && orphanedItems && orphanedItems.length === 0 && (
-        <Alert color="green" icon={<AlertTriangle size={20} />}>
+        <Alert color="green" icon={<IconAlertTriangle size={20} />}>
           <Text fw={600}>No orphaned items found!</Text>
           <Text size="sm">All items have at least one connection.</Text>
         </Alert>
@@ -45,7 +49,7 @@ export function OrphanedItemsReport() {
 
       {!isLoading && orphanedItems && orphanedItems.length > 0 && (
         <>
-          <Alert color="yellow" icon={<AlertTriangle size={20} />}>
+          <Alert color="yellow" icon={<IconAlertTriangle size={20} />}>
             <Text fw={600}>Found {orphanedItems.length} orphaned items</Text>
             <Text size="sm">
               These items have no connections to other items. Click an item to

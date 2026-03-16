@@ -3,11 +3,11 @@ import { useParams, Link } from "react-router-dom";
 import { Container, Title, Table, Loader, Alert } from "@mantine/core";
 import { appConfig } from "@/config";
 import { GetAllEntities } from "@wailsjs/go/services/EntityService";
-import { database } from "@models";
+import { db } from "@models";
 
 export default function GenericEntityList() {
   const { type } = useParams<{ type: string }>();
-  const [entities, setEntities] = useState<database.Entity[]>([]);
+  const [entities, setEntities] = useState<db.Entity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,7 +77,7 @@ export default function GenericEntityList() {
   );
 }
 
-function renderCell(entity: database.Entity, col: string) {
+function renderCell(entity: db.Entity, col: string) {
   if (col.startsWith("attributes.")) {
     const key = col.split(".")[1];
     return entity.attributes?.[key] || "";

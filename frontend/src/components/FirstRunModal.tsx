@@ -8,8 +8,8 @@ import {
   PasswordInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { SaveEnvVar } from "@wailsjs/go/main/App";
-import { Check, Sparkles } from "lucide-react";
+import { SaveEnvVar } from "@wailsjs/go/app/App";
+import { IconCheck, IconSparkles } from "@tabler/icons-react";
 
 interface FirstRunModalProps {
   opened: boolean;
@@ -69,7 +69,7 @@ export function FirstRunModal({
         title: "AI Configured",
         message: "Your OpenAI API Key has been saved.",
         color: "green",
-        icon: <Check size={18} />,
+        icon: <IconCheck size={18} />,
       });
       onClose();
     } catch {
@@ -92,7 +92,7 @@ export function FirstRunModal({
       size="md"
       title={
         <Group gap="xs">
-          <Sparkles size={20} color="#228be6" />
+          <IconSparkles size={20} color="#228be6" />
           <Text fw={700}>
             {mode === "edit"
               ? "Edit Environment Variables"

@@ -15,7 +15,6 @@ import {
   type NodeMouseHandler,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   forceSimulation,
   forceLink,
@@ -36,29 +35,29 @@ import {
   ActionIcon,
 } from "@mantine/core";
 import {
-  Filter,
-  ArrowLeft,
-  ChevronRight,
-  ChevronDown,
-  Network,
-} from "lucide-react";
+  IconFilter,
+  IconArrowLeft,
+  IconChevronRight,
+  IconChevronDown,
+  IconNetwork,
+} from "@tabler/icons-react";
 import { useNavigate, Link, useParams } from "react-router-dom";
 import {
   GetEntityImage,
   GetEgoGraph,
   GetAllGraphData,
-} from "@wailsjs/go/main/App.js";
+} from "@wailsjs/go/app/App";
 import {
   GetEntity,
   GetRelationships,
 } from "@wailsjs/go/services/EntityService";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
 import { getEntityColor, getEntityTextColor } from "@utils/colors";
-import { useUIStore } from "@stores/useUIStore";
-import { database } from "@models";
+import { useUI } from "@/contexts/UIContext";
+import { db } from "@models";
 
 // D3 simulation node.typeSlug
-interface GraphNode extends Omit<database.Entity, "id"> {
+interface GraphNode extends Omit<db.Entity, "id"> {
   id: string; // D3 uses string IDs
   originalId: number; // Keep the original numeric ID
   connections: number;
@@ -162,7 +161,7 @@ export default function Graph() {
   const [nodeImages, setNodeImages] = useState<Record<number, string | null>>(
     {},
   );
-  const { setLastWordId } = useUIStore();
+  const { setLastWordId } = useUI();
 
   // Zoom shortcuts
   useEffect(() => {
@@ -197,47 +196,65 @@ export default function Graph() {
     setOutgoingCollapsed,
     incomingCollapsed,
     setIncomingCollapsed,
-  } = useUIStore();
+  } = useUI();
 
-  const { data: graphData } = useQuery({
-    queryKey: ["graphData", selectedNode],
-    queryFn: async () => {
+  const [graphData, setGraphData] = useState<{
+    nodes: db.Entity[];
+    edges: { sourceId: number; targetId: number }[];
+  } | null>(null);
+  const [selectedItemLinks, setSelectedItemLinks] = useState<
+    db.Relationship[] | null
+  >(null);
+  const [linkedItemsData, setLinkedItemsData] = useState<db.Entity[]>([]);
+
+  useEffect(() => {
+    const fetchGraph = async () => {
       if (selectedNode) {
-        return GetEgoGraph(selectedNode, 1);
+        const data = await GetEgoGraph(selectedNode, 1);
+        setGraphData(data);
+      } else {
+        const data = await GetAllGraphData();
+        setGraphData(data);
       }
-      return GetAllGraphData();
-    },
-  });
+    };
+    fetchGraph().catch(() => {});
+  }, [selectedNode]);
 
   const items = useMemo(() => graphData?.nodes || [], [graphData]);
   const links = useMemo(() => graphData?.edges || [], [graphData]);
 
-  // Query for selected item's links (for the connections sidebar)
-  const { data: selectedItemLinks } = useQuery({
-    queryKey: ["itemLinks", selectedNode],
-    queryFn: () =>
-      selectedNode ? GetRelationships(selectedNode) : Promise.resolve([]),
-    enabled: selectedNode !== null,
-  });
+  useEffect(() => {
+    if (selectedNode !== null) {
+      GetRelationships(selectedNode)
+        .then(setSelectedItemLinks)
+        .catch(() => {});
+    } else {
+      setSelectedItemLinks(null);
+    }
+  }, [selectedNode]);
 
-  // Get unique item IDs from links for the selected item
-  const linkedItemIds = selectedItemLinks
-    ? [
-        ...new Set([
-          ...selectedItemLinks.map((l) => l.sourceId),
-          ...selectedItemLinks.map((l) => l.targetId),
-        ]),
-      ].filter((id) => id !== selectedNode)
-    : [];
+  useEffect(() => {
+    const ids = selectedItemLinks
+      ? [
+          ...new Set([
+            ...selectedItemLinks.map((l) => l.sourceId),
+            ...selectedItemLinks.map((l) => l.targetId),
+          ]),
+        ].filter((id) => id !== selectedNode)
+      : [];
 
-  // Query for linked items details
-  const linkedItemsQueries = useQueries({
-    queries: linkedItemIds.map((id: number) => ({
-      queryKey: ["entity", id],
-      queryFn: () => GetEntity(id),
-      staleTime: 60000,
-    })),
-  });
+    if (ids.length > 0) {
+      Promise.all(ids.map((id: number) => GetEntity(id)))
+        .then((results) =>
+          setLinkedItemsData(results.filter(Boolean) as db.Entity[]),
+        )
+        .catch(() => {});
+    } else {
+      setLinkedItemsData([]);
+    }
+  }, [selectedItemLinks, selectedNode]);
+
+  const linkedItemsQueries = linkedItemsData.map((item) => ({ data: item }));
 
   // Toggle outgoing collapsed
   const toggleOutgoingCollapsed = () => {
@@ -820,7 +837,7 @@ export default function Graph() {
           <Group gap="md">
             <Button
               variant="subtle"
-              leftSection={<ArrowLeft size={18} />}
+              leftSection={<IconArrowLeft size={18} />}
               onClick={() => navigate(-1)}
             >
               Back
@@ -828,7 +845,7 @@ export default function Graph() {
             {!selectedNode && (
               <Button
                 variant="light"
-                leftSection={<Filter size={18} />}
+                leftSection={<IconFilter size={18} />}
                 onClick={() => setFiltersVisible(!filtersVisible)}
               >
                 Filters
@@ -960,9 +977,9 @@ export default function Graph() {
                   onClick={toggleOutgoingCollapsed}
                 >
                   {outgoingCollapsed ? (
-                    <ChevronRight size={14} />
+                    <IconChevronRight size={14} />
                   ) : (
-                    <ChevronDown size={14} />
+                    <IconChevronDown size={14} />
                   )}
                   <Text size="sm" fw={500}>
                     Outgoing (
@@ -1027,7 +1044,7 @@ export default function Graph() {
                                       setSelectedNode(linkedItemId)
                                     }
                                   >
-                                    <Network size={12} />
+                                    <IconNetwork size={12} />
                                   </ActionIcon>
                                 </Group>
                               ) : (
@@ -1056,9 +1073,9 @@ export default function Graph() {
                   onClick={toggleIncomingCollapsed}
                 >
                   {incomingCollapsed ? (
-                    <ChevronRight size={14} />
+                    <IconChevronRight size={14} />
                   ) : (
-                    <ChevronDown size={14} />
+                    <IconChevronDown size={14} />
                   )}
                   <Text size="sm" fw={500}>
                     Incoming (
@@ -1123,7 +1140,7 @@ export default function Graph() {
                                       setSelectedNode(linkedItemId)
                                     }
                                   >
-                                    <Network size={12} />
+                                    <IconNetwork size={12} />
                                   </ActionIcon>
                                 </Group>
                               ) : (

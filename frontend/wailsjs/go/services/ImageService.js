@@ -13,3 +13,7 @@ export function GetEntityImage(arg1) {
 export function SaveEntityImage(arg1, arg2) {
   return window['go']['services']['ImageService']['SaveEntityImage'](arg1, arg2);
 }
+
+export function SetDB(arg1) {
+  return window['go']['services']['ImageService']['SetDB'](arg1);
+}

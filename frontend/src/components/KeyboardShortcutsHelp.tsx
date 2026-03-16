@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, Text, Stack, Group, Kbd, Title } from "@mantine/core";
-import { Command } from "lucide-react";
+import { IconCommand } from "@tabler/icons-react";
 
 export default function KeyboardShortcutsHelp() {
   const [open, setOpen] = useState(false);
@@ -54,7 +54,7 @@ export default function KeyboardShortcutsHelp() {
       onClose={() => setOpen(false)}
       title={
         <Group>
-          <Command size={24} />
+          <IconCommand size={24} />
           <Title order={3}>Keyboard Shortcuts</Title>
         </Group>
       }

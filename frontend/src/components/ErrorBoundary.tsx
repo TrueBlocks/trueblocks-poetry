@@ -1,6 +1,6 @@
 import { Component, ReactNode } from "react";
 import { Container, Title, Text, Button, Paper, Stack } from "@mantine/core";
-import { AlertTriangle } from "lucide-react";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { LogError } from "@utils/logger";
 
 interface ErrorBoundaryProps {
@@ -55,7 +55,7 @@ export class ErrorBoundary extends Component<
         <Container size="sm" py="xl">
           <Paper p="xl" withBorder>
             <Stack gap="md" align="center">
-              <AlertTriangle size={48} color="red" />
+              <IconAlertTriangle size={48} color="red" />
               <Title order={2}>
                 {this.props.fallbackTitle || "Something went wrong"}
               </Title>

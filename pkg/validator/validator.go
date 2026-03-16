@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TrueBlocks/trueblocks-poetry/backend/database"
+	"github.com/TrueBlocks/trueblocks-poetry/v2/internal/db"
 )
 
 // ValidateID checks if an ID is positive
@@ -24,7 +24,7 @@ func ValidateLinkType(linkType string) error {
 }
 
 // ValidateEntity checks if an entity has required fields
-func ValidateEntity(entity database.Entity) error {
+func ValidateEntity(entity db.Entity) error {
 	if strings.TrimSpace(entity.PrimaryLabel) == "" {
 		return fmt.Errorf("entity primary label cannot be empty")
 	}

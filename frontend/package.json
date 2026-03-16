@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "poetry-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -15,19 +15,16 @@
     "CONVENTIONS": "echo 'See copilot.md for development conventions'"
   },
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@mantine/core": "^7.17.8",
-    "@mantine/hooks": "^7.17.8",
-    "@mantine/notifications": "^7.17.8",
-    "@tanstack/react-query": "^5.90.16",
+    "@mantine/core": "^8.3.10",
+    "@mantine/hooks": "^8.3.10",
+    "@mantine/notifications": "^8.3.10",
+    "@tabler/icons-react": "^3.40.0",
     "@xyflow/react": "^12.10.0",
     "cmdk": "^1.1.1",
     "d3-force": "^3.0.0",
-    "lucide-react": "^0.562.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "react-router-dom": "^7.11.0",
-    "zustand": "^5.0.9"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.11.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.27.0",

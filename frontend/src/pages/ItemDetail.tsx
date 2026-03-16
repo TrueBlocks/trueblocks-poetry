@@ -1,5 +1,4 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Container,
   Title,
@@ -33,27 +32,27 @@ import {
 } from "@wailsjs/go/services/EntityService";
 import * as parser from "@/types/parser";
 import { LogInfo, LogError, BrowserOpenURL } from "@wailsjs/runtime/runtime.js";
-import { database } from "@models";
+import { db } from "@models";
 import {
-  ArrowLeft,
-  Edit,
-  Trash2,
-  Network,
-  Sparkles,
-  AlertTriangle,
-  PilcrowIcon,
-  Check,
-  Volume2,
-  Copy,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+  IconArrowLeft,
+  IconEdit,
+  IconTrash,
+  IconNetwork,
+  IconSparkles,
+  IconAlertTriangle,
+  IconPilcrow,
+  IconCheck,
+  IconVolume,
+  IconCopy,
+  IconChevronDown,
+  IconChevronRight,
+} from "@tabler/icons-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { getEntityColor } from "@utils/colors";
 import { stripPossessive } from "@utils/references";
 import { parseReferenceTags } from "@utils/tagParser";
 import { DefinitionRenderer } from "@components/ItemDetail/DefinitionRenderer";
-import { useUIStore } from "@stores/useUIStore";
+import { useUI } from "@/contexts/UIContext";
 import { useAudioPlayer } from "@hooks/useAudioPlayer";
 import { useCapabilities } from "@hooks/useEntityData";
 
@@ -64,7 +63,6 @@ export default function ItemDetail({
 }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { colorScheme } = useMantineColorScheme();
 
   const {
@@ -74,7 +72,7 @@ export default function ItemDetail({
     setOutgoingCollapsed,
     incomingCollapsed,
     setIncomingCollapsed,
-  } = useUIStore();
+  } = useUI();
 
   const [creatingLinkFor, setCreatingLinkFor] = useState<string | null>(null);
   const [deletingLinkFor, setDeletingLinkFor] = useState<string | null>(null);
@@ -115,14 +113,39 @@ export default function ItemDetail({
 
   // Note: SaveLastWord is now handled by ItemPage parent component
 
-  const { data: entity, isLoading } = useQuery({
-    queryKey: ["entity", id],
-    queryFn: () => GetEntity(Number(id)),
-  });
+  const [entity, setEntity] = useState<db.Entity | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadEntity = useCallback(() => {
+    setIsLoading(true);
+    GetEntity(Number(id))
+      .then(setEntity)
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    loadEntity();
+  }, [loadEntity]);
 
   const { data: capabilities } = useCapabilities();
 
-  // Keyboard shortcuts: cmd+s to save/normalize, cmd+e to edit, cmd+r to reload
+  const [links, setLinks] = useState<Awaited<
+    ReturnType<typeof GetRelationshipsWithDetails>
+  > | null>(null);
+
+  const loadLinks = useCallback(() => {
+    if (id) {
+      GetRelationshipsWithDetails(Number(id))
+        .then(setLinks)
+        .catch(() => {});
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadLinks();
+  }, [loadLinks]);
+
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       // Stop audio on any keyboard action
@@ -131,8 +154,8 @@ export default function ItemDetail({
       // cmd+r or ctrl+r to reload
       if ((e.metaKey || e.ctrlKey) && e.key === "r") {
         e.preventDefault();
-        queryClient.invalidateQueries({ queryKey: ["entity", id] });
-        queryClient.invalidateQueries({ queryKey: ["links", id] });
+        loadEntity();
+        loadLinks();
         notifications.show({
           title: "Reloaded",
           message: "Item data refreshed",
@@ -154,13 +177,12 @@ export default function ItemDetail({
         if (entity) {
           try {
             await UpdateEntity(entity);
-            // Invalidate and refetch to show normalized description
-            queryClient.invalidateQueries({ queryKey: ["entity", id] });
+            loadEntity();
             notifications.show({
               title: "Item Normalized",
               message: "References have been normalized",
               color: "green",
-              icon: <Check size={18} />,
+              icon: <IconCheck size={18} />,
             });
           } catch (error) {
             notifications.show({
@@ -176,13 +198,7 @@ export default function ItemDetail({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [entity, id, queryClient, navigate, onEnterEditMode, stopAudio]);
-
-  const { data: links } = useQuery({
-    queryKey: ["links", id],
-    queryFn: () => GetRelationshipsWithDetails(Number(id)),
-    enabled: !!id,
-  });
+  }, [entity, id, navigate, onEnterEditMode, stopAudio, loadEntity, loadLinks]);
 
   // Log delete button state for debugging
   useEffect(() => {
@@ -196,54 +212,60 @@ export default function ItemDetail({
     }
   }, [links, entity, id]);
 
-  const deleteMutation = useMutation({
-    mutationFn: () => DeleteEntity(Number(id)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recentItems"] });
+  const [deleteIsPending, setDeleteIsPending] = useState(false);
+
+  const handleDeleteEntity = async () => {
+    setDeleteIsPending(true);
+    try {
+      await DeleteEntity(Number(id));
       notifications.show({
         title: "Item deleted",
         message: "The item has been deleted successfully",
         color: "green",
       });
       navigate("/");
-    },
-    onError: (error) => {
+    } catch (error) {
       LogError(`Failed to delete item: ${error}`);
       notifications.show({
         title: "Error",
         message: `Failed to delete item: ${error}`,
         color: "red",
       });
-    },
-  });
+    } finally {
+      setDeleteIsPending(false);
+    }
+  };
 
-  // Fetch all items for reference matching
-  const { data: allItems } = useQuery({
-    queryKey: ["allItemsForRefs"],
-    queryFn: async () => {
-      return await GetAllEntities();
-    },
-  });
+  const [allItems, setAllItems] = useState<db.Entity[] | null>(null);
 
-  // Fetch details for linked items
-  const linkedItemIds = links?.map((link) => link.otherEntityId) || [];
+  useEffect(() => {
+    GetAllEntities()
+      .then(setAllItems)
+      .catch(() => {});
+  }, []);
 
-  const linkedItemsQueries = useQuery<Record<number, database.Entity>>({
-    queryKey: ["linkedItems", linkedItemIds],
-    queryFn: async () => {
-      const items = await Promise.all(
-        linkedItemIds.map((id: number) => GetEntity(id)),
-      );
-      return items.reduce(
-        (acc, e) => {
-          if (e) acc[e.id] = e;
-          return acc;
-        },
-        {} as Record<number, database.Entity>,
-      );
-    },
-    enabled: linkedItemIds.length > 0,
-  });
+  const [linkedItemsData, setLinkedItemsData] = useState<
+    Record<number, db.Entity>
+  >({});
+  const linkedItemsQueries = { data: linkedItemsData };
+
+  useEffect(() => {
+    const ids = links?.map((link) => link.otherEntityId) || [];
+    if (ids.length > 0) {
+      Promise.all(ids.map((itemId: number) => GetEntity(itemId)))
+        .then((items) => {
+          const map = items.reduce(
+            (acc, e) => {
+              if (e) acc[e.id] = e;
+              return acc;
+            },
+            {} as Record<number, db.Entity>,
+          );
+          setLinkedItemsData(map);
+        })
+        .catch(() => {});
+    }
+  }, [links]);
 
   // Load item image when item changes (with fallback to Writer image for Titles)
   useEffect(() => {
@@ -266,11 +288,11 @@ export default function ItemDetail({
         // 2. If no own image, and it's a Title, try to get Writer's image
         if (entity.typeSlug === "title" && linkedItemsQueries.data) {
           const linkedItems = Object.values(
-            linkedItemsQueries.data as Record<number, database.Entity>,
+            linkedItemsQueries.data as Record<number, db.Entity>,
           );
 
           // Look for the writer mentioned in "Written by:" tag first
-          let writer: database.Entity | undefined;
+          let writer: db.Entity | undefined;
           if (entity.description) {
             const writtenByMatch = entity.description.match(
               /Written by:\s*\{writer:\s*([^}]+)\}/i,
@@ -483,7 +505,7 @@ export default function ItemDetail({
     // LogInfo(
     //   `[ItemDetail] Deleting item immediately (no incoming links), calling deleteMutation.mutate()`,
     // );
-    deleteMutation.mutate();
+    handleDeleteEntity();
   };
 
   const handleDeleteIncomingLink = async () => {
@@ -499,10 +521,8 @@ export default function ItemDetail({
 
     try {
       await DeleteRelationship(incomingLink.id);
-      // LogInfo("[ItemDetail] Incoming link deleted successfully");
-      // Refetch both item and links to reload the entire view
-      queryClient.invalidateQueries({ queryKey: ["item", id] });
-      queryClient.invalidateQueries({ queryKey: ["itemLinks", id] });
+      loadEntity();
+      loadLinks();
       notifications.show({
         title: "Link deleted",
         message: "The incoming link has been deleted",
@@ -546,10 +566,8 @@ export default function ItemDetail({
         });
       }
 
-      // Refresh the data
-      await queryClient.invalidateQueries({ queryKey: ["item", id] });
-      await queryClient.invalidateQueries({ queryKey: ["links", id] });
-      await queryClient.invalidateQueries({ queryKey: ["linkedItems"] });
+      loadEntity();
+      loadLinks();
       LogInfo("[handleCreateLinkFromQuality] Completed successfully");
     } catch (error) {
       LogError(`[handleCreateLinkFromQuality] Caught error`);
@@ -632,9 +650,8 @@ export default function ItemDetail({
         return;
       }
 
-      // Refresh the data
-      queryClient.invalidateQueries({ queryKey: ["item", id] });
-      queryClient.invalidateQueries({ queryKey: ["links", id] });
+      loadEntity();
+      loadLinks();
 
       notifications.show({
         title: "Link deleted",
@@ -693,14 +710,14 @@ export default function ItemDetail({
           <Group gap="md">
             <Button
               variant="subtle"
-              leftSection={<ArrowLeft size={18} />}
+              leftSection={<IconArrowLeft size={18} />}
               onClick={() => navigate(-1)}
             >
               Back
             </Button>
             <Button
               variant="subtle"
-              leftSection={<Sparkles size={18} />}
+              leftSection={<IconSparkles size={18} />}
               onClick={() => {
                 let query = "";
                 const type = entity?.typeSlug || "";
@@ -733,7 +750,7 @@ export default function ItemDetail({
             </Button>
             <Button
               variant={revealMarkdown ? "filled" : "subtle"}
-              leftSection={<PilcrowIcon size={18} />}
+              leftSection={<IconPilcrow size={18} />}
               onClick={toggleRevealMarkdown}
               title="Show/hide markdown formatting"
             >
@@ -741,17 +758,22 @@ export default function ItemDetail({
             </Button>
           </Group>
           <Group gap="sm">
-            <Button onClick={onEnterEditMode} leftSection={<Edit size={16} />}>
+            <Button
+              onClick={onEnterEditMode}
+              leftSection={<IconEdit size={16} />}
+            >
               Edit
             </Button>
             <Button
               color="red"
-              leftSection={<Trash2 size={16} />}
+              leftSection={<IconTrash size={16} />}
               onClick={handleDelete}
-              loading={deleteMutation.isPending}
+              loading={deleteIsPending}
               disabled={
-                links &&
-                links.filter((l) => l.targetId === Number(id)).length > 0
+                !!(
+                  links &&
+                  links.filter((l) => l.targetId === Number(id)).length > 0
+                )
               }
               title={
                 links &&
@@ -795,11 +817,11 @@ export default function ItemDetail({
                           title: "Copied!",
                           message: `"${entity.primaryLabel}" copied to clipboard`,
                           color: "green",
-                          icon: <Check size={16} />,
+                          icon: <IconCheck size={16} />,
                         });
                       }}
                     >
-                      <Copy size={20} />
+                      <IconCopy size={20} />
                     </ActionIcon>
                     <ActionIcon
                       size="lg"
@@ -809,7 +831,7 @@ export default function ItemDetail({
                       component={Link}
                       to={`/item/${id}?tab=graph`}
                     >
-                      <Network size={20} />
+                      <IconNetwork size={20} />
                     </ActionIcon>
                   </Group>
                   <Group gap="sm">
@@ -957,7 +979,7 @@ export default function ItemDetail({
                           }
                         }}
                       >
-                        <Volume2 size={22} />
+                        <IconVolume size={22} />
                       </ActionIcon>
                     )}
                     {entity.typeSlug === "title" &&
@@ -1162,7 +1184,7 @@ export default function ItemDetail({
                             }
                           }}
                         >
-                          <Volume2 size={22} />
+                          <IconVolume size={22} />
                         </ActionIcon>
                       )}
                   </Group>
@@ -1259,7 +1281,7 @@ export default function ItemDetail({
                 {dataQuality && dataQuality.hasIssues && (
                   <Alert
                     color="yellow"
-                    icon={<AlertTriangle size={20} />}
+                    icon={<IconAlertTriangle size={20} />}
                     mt="md"
                   >
                     <Title order={3} size="md" mb="sm">
@@ -1494,9 +1516,9 @@ export default function ItemDetail({
                 onClick={toggleOutgoingCollapsed}
               >
                 {outgoingCollapsed ? (
-                  <ChevronRight size={14} />
+                  <IconChevronRight size={14} />
                 ) : (
-                  <ChevronDown size={14} />
+                  <IconChevronDown size={14} />
                 )}
                 <Text size="sm" fw={500}>
                   Outgoing (
@@ -1554,7 +1576,7 @@ export default function ItemDetail({
                                   color="dark"
                                   title="Show in graph"
                                 >
-                                  <Network size={12} />
+                                  <IconNetwork size={12} />
                                 </ActionIcon>
                               </Group>
                             ) : (
@@ -1583,9 +1605,9 @@ export default function ItemDetail({
                 onClick={toggleIncomingCollapsed}
               >
                 {incomingCollapsed ? (
-                  <ChevronRight size={14} />
+                  <IconChevronRight size={14} />
                 ) : (
-                  <ChevronDown size={14} />
+                  <IconChevronDown size={14} />
                 )}
                 <Text size="sm" fw={500}>
                   Incoming (
@@ -1643,7 +1665,7 @@ export default function ItemDetail({
                                   color="dark"
                                   title="Show in graph"
                                 >
-                                  <Network size={12} />
+                                  <IconNetwork size={12} />
                                 </ActionIcon>
                               </Group>
                             ) : (

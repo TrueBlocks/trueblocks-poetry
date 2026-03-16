@@ -4,15 +4,15 @@ import { PoemRenderer } from "./PoemRenderer";
 import { ReferenceLink } from "./ReferenceLink";
 import { parseReferenceTags, parseTextSegments } from "@utils/tagParser";
 import { stripPossessive } from "@utils/references";
-import { database } from "@models";
+import { db } from "@models";
 import * as parser from "@/types/parser";
 
 interface DefinitionRendererProps {
   text: string;
-  allEntities: database.Entity[];
+  allEntities: db.Entity[];
   stopAudio: () => void;
   currentAudioRef: React.MutableRefObject<HTMLAudioElement | null>;
-  entity?: database.Entity;
+  entity?: db.Entity;
 }
 
 export function DefinitionRenderer({

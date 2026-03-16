@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useQuery, useQueries } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Container,
@@ -31,7 +30,7 @@ import {
   SaveSearch,
   DeleteSavedSearch,
   RemoveRecentSearch,
-} from "@wailsjs/go/main/App.js";
+} from "@wailsjs/go/app/App";
 import {
   SearchEntities,
   SearchEntitiesWithOptions,
@@ -40,11 +39,11 @@ import {
   GetAllEntities,
 } from "@wailsjs/go/services/EntityService";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
-import { Search as SearchIcon, Save, Trash2 } from "lucide-react";
+import { IconSearch, IconDeviceFloppy, IconTrash } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { DefinitionRenderer } from "@components/ItemDetail/DefinitionRenderer";
-import { useUIStore } from "@stores/useUIStore";
-import { database } from "@models";
+import { useUI } from "@/contexts/UIContext";
+import { db } from "@models";
 
 interface SavedSearch {
   name: string;
@@ -92,7 +91,7 @@ const SearchResultImage = ({ id }: { id: number }) => {
 export default function Search() {
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === "dark";
-  const { currentSearch, setCurrentSearch } = useUIStore();
+  const { currentSearch, setCurrentSearch } = useUI();
   const [query, setQuery] = useState(currentSearch || "");
   const [debouncedQuery, setDebouncedQuery] = useState(currentSearch || "");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -106,7 +105,7 @@ export default function Search() {
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [searchName, setSearchName] = useState("");
   const [showAllResults, setShowAllResults] = useState(false);
-  const [allItems, setAllItems] = useState<database.Entity[]>([]);
+  const [allItems, setAllItems] = useState<db.Entity[]>([]);
   const navigate = useNavigate();
   const resultRefs = useRef<(HTMLElement | null)[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -164,26 +163,32 @@ export default function Search() {
     return debouncedQuery.trim().toUpperCase().startsWith("SELECT");
   }, [debouncedQuery]);
 
-  const {
-    data: results,
-    isLoading,
-    error,
-  } = useQuery<database.Entity[] | Record<string, unknown>[]>({
-    queryKey: [
-      "search",
-      debouncedQuery,
-      selectedTypes,
-      selectedSource,
-      useRegex,
-      hasImage,
-      hasTts,
-      isSqlSearch,
-    ],
-    queryFn: () => {
+  const [results, setResults] = useState<
+    db.Entity[] | Record<string, unknown>[] | null
+  >(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const shouldSearch =
+      debouncedQuery.length > 0 ||
+      hasImage ||
+      hasTts ||
+      selectedTypes.length > 0 ||
+      !!selectedSource;
+
+    if (!shouldSearch) {
+      setResults(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    const doSearch = () => {
       if (isSqlSearch) {
         return RunAdHocQuery(debouncedQuery);
       }
-      // Use SearchEntitiesWithOptions if any filters are active or query is empty (wildcard)
       const hasFilters =
         selectedTypes.length > 0 ||
         selectedSource ||
@@ -198,15 +203,21 @@ export default function Search() {
         );
       }
       return SearchEntities(debouncedQuery, "");
-    },
-    enabled:
-      debouncedQuery.length > 0 ||
-      hasImage ||
-      hasTts ||
-      selectedTypes.length > 0 ||
-      !!selectedSource,
-    staleTime: 30000, // Cache results for 30 seconds
-  });
+    };
+
+    doSearch()
+      .then(setResults)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setIsLoading(false));
+  }, [
+    debouncedQuery,
+    selectedTypes,
+    selectedSource,
+    useRegex,
+    hasImage,
+    hasTts,
+    isSqlSearch,
+  ]);
 
   const { exactMatches, primaryLabelMatches, otherResults, allResults } =
     useMemo(() => {
@@ -232,11 +243,11 @@ export default function Search() {
 
       const normalizedQuery = debouncedQuery.trim().toLowerCase();
 
-      const exact: database.Entity[] = [];
-      const primaryLabels: database.Entity[] = [];
-      const other: database.Entity[] = [];
+      const exact: db.Entity[] = [];
+      const primaryLabels: db.Entity[] = [];
+      const other: db.Entity[] = [];
 
-      (results as database.Entity[]).forEach((item) => {
+      (results as db.Entity[]).forEach((item) => {
         const itemWord = item.primaryLabel.trim().toLowerCase();
 
         if (itemWord === normalizedQuery) {
@@ -269,40 +280,42 @@ export default function Search() {
       };
     }, [results, debouncedQuery, showAllResults, isSqlSearch]);
 
-  // Fetch links for all result items to get writer names
-  const linkQueries = useQueries({
-    queries: ((results || []) as database.Entity[]).map((item) => ({
-      queryKey: ["searchItemLinks", item.id],
-      queryFn: async () => {
-        const links = await GetRelationships(item.id);
-        const outgoingLinks = links.filter((link) => link.sourceId === item.id);
-        const writerItems = await Promise.all(
-          outgoingLinks.map(async (link) => {
-            const linkedItem = await GetEntity(link.targetId);
-            return linkedItem?.typeSlug === "writer"
-              ? linkedItem.primaryLabel
-              : null;
-          }),
-        );
-        return writerItems.filter(Boolean);
-      },
-      enabled: !!debouncedQuery && results && results.length > 0,
-    })),
-  });
+  const [itemWriters, setItemWriters] = useState<Record<number, string[]>>({});
 
-  // Map item IDs to their writer names
-  const itemWriters = useMemo(() => {
-    const map: Record<number, string[]> = {};
-    (results as database.Entity[] | undefined)?.forEach(
-      (item, index: number) => {
-        const writers =
-          linkQueries[index]?.data?.filter((w): w is string => w !== null) ||
-          [];
-        map[item.id] = writers;
-      },
-    );
-    return map;
-  }, [results, linkQueries]);
+  useEffect(() => {
+    if (!debouncedQuery || !results || results.length === 0) {
+      setItemWriters({});
+      return;
+    }
+
+    const fetchWriters = async () => {
+      const map: Record<number, string[]> = {};
+      await Promise.all(
+        ((results || []) as db.Entity[]).map(async (item) => {
+          try {
+            const links = await GetRelationships(item.id);
+            const outgoingLinks = links.filter(
+              (link) => link.sourceId === item.id,
+            );
+            const writerItems = await Promise.all(
+              outgoingLinks.map(async (link) => {
+                const linkedItem = await GetEntity(link.targetId);
+                return linkedItem?.typeSlug === "writer"
+                  ? linkedItem.primaryLabel
+                  : null;
+              }),
+            );
+            map[item.id] = writerItems.filter((w): w is string => w !== null);
+          } catch {
+            map[item.id] = [];
+          }
+        }),
+      );
+      setItemWriters(map);
+    };
+
+    fetchWriters();
+  }, [results, debouncedQuery]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -499,7 +512,7 @@ export default function Search() {
                 <Combobox.Target>
                   <TextInput
                     ref={searchInputRef}
-                    leftSection={<SearchIcon size={20} />}
+                    leftSection={<IconSearch size={20} />}
                     value={query}
                     onChange={(e) => {
                       setQuery(e.target.value);
@@ -640,7 +653,7 @@ export default function Search() {
                                   handleDeleteSavedSearch(saved.name)
                                 }
                               >
-                                <Trash2 size={14} />
+                                <IconTrash size={14} />
                               </Button>
                             </Group>
                           ))}
@@ -651,7 +664,7 @@ export default function Search() {
                         </Text>
                       )}
                       <Button
-                        leftSection={<Save size={16} />}
+                        leftSection={<IconDeviceFloppy size={16} />}
                         size="xs"
                         variant="outline"
                         mt="xs"
@@ -720,7 +733,7 @@ export default function Search() {
               {(results as Record<string, unknown>[]).map(
                 (row, index: number) => {
                   const item = { ...row } as Record<string, unknown> &
-                    Partial<database.Entity>;
+                    Partial<db.Entity>;
                   if ("item_id" in item && item.item_id && !item.id) {
                     item.id = item.item_id as number;
                   }
@@ -761,7 +774,7 @@ export default function Search() {
                               allEntities={allItems}
                               stopAudio={() => {}}
                               currentAudioRef={audioRef}
-                              entity={item as database.Entity}
+                              entity={item as db.Entity}
                             />
                           )}
                         </Stack>
@@ -1024,7 +1037,7 @@ export default function Search() {
                             allEntities={allItems}
                             stopAudio={() => {}}
                             currentAudioRef={audioRef}
-                            entity={item as database.Entity}
+                            entity={item as db.Entity}
                           />
                         ) : (
                           <Text component="span">No description</Text>
@@ -1066,11 +1079,9 @@ export default function Search() {
           <Stack align="center" gap="xs">
             <Text size="sm" c="dimmed">
               Showing {allResults.length} of{" "}
-              {(results as database.Entity[])?.length || allResults.length}{" "}
-              results
+              {(results as db.Entity[])?.length || allResults.length} results
             </Text>
-            {allResults.length <
-              ((results as database.Entity[])?.length || 0) && (
+            {allResults.length < ((results as db.Entity[])?.length || 0) && (
               <Button variant="light" onClick={() => setShowAllResults(true)}>
                 Show All Results
               </Button>
@@ -1095,7 +1106,7 @@ export default function Search() {
       {!debouncedQuery && (
         <Center p="xl">
           <Stack align="center">
-            <SearchIcon size={48} />
+            <IconSearch size={48} />
             <Text size="lg" c="dimmed">
               Start typing to search
             </Text>

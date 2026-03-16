@@ -8,28 +8,34 @@ import {
   Anchor,
   Button,
 } from "@mantine/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   GetDanglingRelationships,
   DeleteRelationship,
-} from "@wailsjs/go/main/App";
+} from "@wailsjs/go/app/App";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
 import { DanglingLinkResult } from "./types";
 
 export function DanglingLinksReport() {
-  const queryClient = useQueryClient();
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+  const [danglingLinks, setDanglingLinks] = useState<
+    DanglingLinkResult[] | null
+  >(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: danglingLinks, isLoading } = useQuery({
-    queryKey: ["danglingLinks"],
-    queryFn: async () => {
-      const results = await GetDanglingRelationships();
-      return results as DanglingLinkResult[];
-    },
-  });
+  const loadData = useCallback(() => {
+    setIsLoading(true);
+    GetDanglingRelationships()
+      .then((results) => setDanglingLinks(results as DanglingLinkResult[]))
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleDeleteRelationship = async (
     sourceId: number,
@@ -43,7 +49,7 @@ export function DanglingLinksReport() {
     try {
       await DeleteRelationship(relationshipId);
       LogInfo("[DanglingLinksReport] Link deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["danglingLinks"] });
+      loadData();
     } catch (error) {
       LogInfo(
         `[DanglingLinksReport] Failed to delete link: ${error instanceof Error ? error.message : String(error)}`,
@@ -76,7 +82,7 @@ export function DanglingLinksReport() {
       )}
 
       {!isLoading && danglingLinks && danglingLinks.length === 0 && (
-        <Alert color="green" icon={<AlertTriangle size={20} />}>
+        <Alert color="green" icon={<IconAlertTriangle size={20} />}>
           <Text fw={600}>No dangling links found!</Text>
           <Text size="sm">
             All links in your database point to valid items.
@@ -86,7 +92,7 @@ export function DanglingLinksReport() {
 
       {!isLoading && danglingLinks && danglingLinks.length > 0 && (
         <>
-          <Alert color="red" icon={<AlertTriangle size={20} />}>
+          <Alert color="red" icon={<IconAlertTriangle size={20} />}>
             <Text fw={600}>Found {danglingLinks.length} dangling links</Text>
             <Text size="sm">
               These links point to items that no longer exist, likely due to
@@ -136,7 +142,7 @@ export function DanglingLinksReport() {
                       size="xs"
                       color="red"
                       variant="light"
-                      leftSection={<Trash2 size={14} />}
+                      leftSection={<IconTrash size={14} />}
                       loading={deletingIds.has(link.relationshipId)}
                       onClick={() =>
                         handleDeleteRelationship(

@@ -8,35 +8,41 @@ import {
   Anchor,
   Tooltip,
 } from "@mantine/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { useState } from "react";
-import { GetUnlinkedReferences } from "@wailsjs/go/main/App";
+import { useState, useEffect, useCallback } from "react";
+import { GetUnlinkedReferences } from "@wailsjs/go/app/App";
 import {
   CreateRelationship,
   GetEntity,
   UpdateEntity,
 } from "@wailsjs/go/services/EntityService";
-import { database } from "@wailsjs/go/models";
+import { db } from "@wailsjs/go/models";
 import { LogInfo } from "@wailsjs/runtime/runtime.js";
-import { AlertTriangle } from "lucide-react";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { UnlinkedRefResult } from "./types";
 import { lookupEntityByRef } from "./utils";
 import { Patterns } from "@utils/constants";
 import { LogError } from "@utils/logger";
 
 export function UnlinkedReferencesReport() {
-  const queryClient = useQueryClient();
   const [creatingLink, setCreatingLink] = useState<string | null>(null);
   const [removingTag, setRemovingTag] = useState<string | null>(null);
+  const [unlinkedRefs, setUnlinkedRefs] = useState<UnlinkedRefResult[] | null>(
+    null,
+  );
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: unlinkedRefs, isLoading } = useQuery({
-    queryKey: ["unlinkedReferences"],
-    queryFn: async () => {
-      const results = await GetUnlinkedReferences();
-      return results as UnlinkedRefResult[];
-    },
-  });
+  const loadData = useCallback(() => {
+    setIsLoading(true);
+    GetUnlinkedReferences()
+      .then((results) => setUnlinkedRefs(results as UnlinkedRefResult[]))
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleCreateRelationship = async (
     sourceId: number,
@@ -52,7 +58,7 @@ export function UnlinkedReferencesReport() {
       }
 
       await CreateRelationship(sourceId, destEntity.id, "reference");
-      queryClient.invalidateQueries({ queryKey: ["unlinkedReferences"] });
+      loadData();
     } catch (error) {
       LogError(`Failed to create link: ${error}`);
     } finally {
@@ -92,14 +98,14 @@ export function UnlinkedReferencesReport() {
         `[UnlinkedReferencesReport] Updated definition length: ${updatedDefinition.length}`,
       );
 
-      const updatedItem = new database.Entity({
+      const updatedItem = new db.Entity({
         ...item,
         description: updatedDefinition,
       });
       await UpdateEntity(updatedItem);
 
       LogInfo("[UnlinkedReferencesReport] Item updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["unlinkedReferences"] });
+      loadData();
     } catch (error) {
       LogInfo(
         `[UnlinkedReferencesReport] Failed to remove tag: ${error instanceof Error ? error.message : String(error)}`,
@@ -128,7 +134,7 @@ export function UnlinkedReferencesReport() {
       )}
 
       {!isLoading && unlinkedRefs && unlinkedRefs.length === 0 && (
-        <Alert color="green" icon={<AlertTriangle size={20} />}>
+        <Alert color="green" icon={<IconAlertTriangle size={20} />}>
           <Text fw={600}>No unlinked references found!</Text>
           <Text size="sm">
             All references in your database are properly linked.
@@ -138,7 +144,7 @@ export function UnlinkedReferencesReport() {
 
       {!isLoading && unlinkedRefs && unlinkedRefs.length > 0 && (
         <>
-          <Alert color="yellow" icon={<AlertTriangle size={20} />}>
+          <Alert color="yellow" icon={<IconAlertTriangle size={20} />}>
             <Text fw={600}>
               Found {unlinkedRefs.length} items with unlinked references
             </Text>

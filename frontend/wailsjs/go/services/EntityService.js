@@ -70,6 +70,10 @@ export function SearchEntitiesWithOptions(arg1, arg2, arg3) {
   return window['go']['services']['EntityService']['SearchEntitiesWithOptions'](arg1, arg2, arg3);
 }
 
+export function SetDB(arg1) {
+  return window['go']['services']['EntityService']['SetDB'](arg1);
+}
+
 export function UpdateEntity(arg1) {
   return window['go']['services']['EntityService']['UpdateEntity'](arg1);
 }

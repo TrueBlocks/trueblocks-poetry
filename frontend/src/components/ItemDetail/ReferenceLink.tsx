@@ -6,19 +6,19 @@ import {
   useMantineColorScheme,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { Network, Volume2, Copy } from "lucide-react";
+import { IconNetwork, IconVolume, IconCopy } from "@tabler/icons-react";
 import { SpeakWord } from "@wailsjs/go/services/TTSService";
 import { useEntityImage, useCapabilities } from "@hooks/useEntityData";
 import { prepareTTSText } from "@utils/tts";
-import { database } from "@models";
+import { db } from "@models";
 import { appConfig } from "@/config";
 
 interface ReferenceLinkProps {
-  matchedEntity: database.Entity;
+  matchedEntity: db.Entity;
   displayWord: string;
   stopAudio: () => void;
   currentAudioRef: React.MutableRefObject<HTMLAudioElement | null>;
-  parentEntity?: database.Entity;
+  parentEntity?: db.Entity;
 }
 
 export function ReferenceLink({
@@ -262,7 +262,7 @@ export function ReferenceLink({
             disabled={!capabilities?.hasTts}
             onClick={handleTTSClick}
           >
-            <Volume2 size={14} />
+            <IconVolume size={14} />
           </ActionIcon>
           <ActionIcon
             size="xs"
@@ -276,7 +276,7 @@ export function ReferenceLink({
             title="Copy quoted text"
             onClick={handleCopyClick}
           >
-            <Copy size={14} />
+            <IconCopy size={14} />
           </ActionIcon>
         </>
       )}
@@ -295,7 +295,7 @@ export function ReferenceLink({
         }}
         title="Show in graph"
       >
-        <Network size={14} />
+        <IconNetwork size={14} />
       </Anchor>
     </span>
   );

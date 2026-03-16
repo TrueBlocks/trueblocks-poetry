@@ -1,4 +1,3 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Title,
   Text,
@@ -20,18 +19,40 @@ import {
   GetImageCacheInfo,
   GetDatabaseFileSize,
   GetEntity,
-} from "@wailsjs/go/main/App.js";
-import { AlertCircle, Search, Edit } from "lucide-react";
+} from "@wailsjs/go/app/App";
+import { IconAlertCircle, IconSearch, IconEdit } from "@tabler/icons-react";
 import { useState, useRef, useEffect } from "react";
 import { FirstRunModal } from "@components/FirstRunModal";
 
 export function GeneralSettings() {
-  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [editEnvModalOpen, setEditEnvModalOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Keyboard shortcut for search
+  const [settings, setSettings] = useState<Awaited<
+    ReturnType<typeof GetAllSettings>
+  > | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [dbPath, setDbPath] = useState<string | null>(null);
+  const [envVars, setEnvVars] = useState<Record<string, string> | null>(null);
+  const [envLoading, setEnvLoading] = useState(true);
+  const [envError, setEnvError] = useState<string | null>(null);
+  const [envLocation, setEnvLocation] = useState<string | null>(null);
+  const [cacheInfo, setCacheInfo] = useState<Awaited<
+    ReturnType<typeof GetTTSCacheInfo>
+  > | null>(null);
+  const [cacheLoading, setCacheLoading] = useState(true);
+  const [imageCacheInfo, setImageCacheInfo] = useState<Awaited<
+    ReturnType<typeof GetImageCacheInfo>
+  > | null>(null);
+  const [imageCacheLoading, setImageCacheLoading] = useState(true);
+  const [dbFileSize, setDbFileSize] = useState<number | null>(null);
+  const [dbSizeLoading, setDbSizeLoading] = useState(true);
+  const [lastWordItem, setLastWordItem] = useState<Awaited<
+    ReturnType<typeof GetEntity>
+  > | null>(null);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === "/" || e.key === "?")) {
@@ -45,60 +66,65 @@ export function GeneralSettings() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const {
-    data: settings,
-    isLoading: settingsLoading,
-    error: settingsError,
-  } = useQuery({
-    queryKey: ["allSettings"],
-    queryFn: GetAllSettings,
-    refetchInterval: 500, // Refetch every 500ms to show window changes in real-time
-  });
+  useEffect(() => {
+    const loadSettings = () => {
+      GetAllSettings()
+        .then((s) => {
+          setSettings(s);
+          setSettingsError(null);
+        })
+        .catch((e: Error) => setSettingsError(e.message))
+        .finally(() => setSettingsLoading(false));
+    };
+    loadSettings();
+    const interval = setInterval(loadSettings, 500);
+    return () => clearInterval(interval);
+  }, []);
 
-  const { data: dbPath } = useQuery({
-    queryKey: ["databasePath"],
-    queryFn: async () => {
-      const { GetDatabasePath } =
-        await import("../../../wailsjs/go/main/App.js");
-      return GetDatabasePath();
-    },
-  });
+  useEffect(() => {
+    import("../../../wailsjs/go/app/App").then(({ GetDatabasePath }) => {
+      GetDatabasePath()
+        .then(setDbPath)
+        .catch(() => {});
+    });
+  }, []);
 
-  const {
-    data: envVars,
-    isLoading: envLoading,
-    error: envError,
-  } = useQuery({
-    queryKey: ["envVars"],
-    queryFn: GetEnvVars,
-  });
+  const loadEnvVars = () => {
+    GetEnvVars()
+      .then((v) => {
+        setEnvVars(v);
+        setEnvError(null);
+      })
+      .catch((e: Error) => setEnvError(e.message))
+      .finally(() => setEnvLoading(false));
+  };
 
-  const { data: envLocation } = useQuery({
-    queryKey: ["envLocation"],
-    queryFn: GetEnvLocation,
-  });
+  useEffect(() => {
+    loadEnvVars();
+    GetEnvLocation()
+      .then(setEnvLocation)
+      .catch(() => {});
+    GetTTSCacheInfo()
+      .then(setCacheInfo)
+      .catch(() => {})
+      .finally(() => setCacheLoading(false));
+    GetImageCacheInfo()
+      .then(setImageCacheInfo)
+      .catch(() => {})
+      .finally(() => setImageCacheLoading(false));
+    GetDatabaseFileSize()
+      .then(setDbFileSize)
+      .catch(() => {})
+      .finally(() => setDbSizeLoading(false));
+  }, []);
 
-  const { data: cacheInfo, isLoading: cacheLoading } = useQuery({
-    queryKey: ["ttsCacheInfo"],
-    queryFn: GetTTSCacheInfo,
-  });
-
-  const { data: imageCacheInfo, isLoading: imageCacheLoading } = useQuery({
-    queryKey: ["imageCacheInfo"],
-    queryFn: GetImageCacheInfo,
-  });
-
-  const { data: dbFileSize, isLoading: dbSizeLoading } = useQuery({
-    queryKey: ["databaseFileSize"],
-    queryFn: GetDatabaseFileSize,
-  });
-
-  const { data: lastWordItem } = useQuery({
-    queryKey: ["lastWordItem", settings?.lastWordId],
-    queryFn: () =>
-      settings?.lastWordId ? GetEntity(settings.lastWordId) : null,
-    enabled: !!settings?.lastWordId,
-  });
+  useEffect(() => {
+    if (settings?.lastWordId) {
+      GetEntity(settings.lastWordId)
+        .then(setLastWordItem)
+        .catch(() => {});
+    }
+  }, [settings?.lastWordId]);
 
   if (settingsLoading || envLoading) {
     return (
@@ -114,7 +140,7 @@ export function GeneralSettings() {
       <TextInput
         ref={searchInputRef}
         placeholder="Search settings..."
-        leftSection={<Search size={16} />}
+        leftSection={<IconSearch size={16} />}
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.currentTarget.value)}
         mb="xs"
@@ -130,7 +156,7 @@ export function GeneralSettings() {
         </Group>
 
         {settingsError ? (
-          <Alert icon={<AlertCircle size={16} />} color="red" title="Error">
+          <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error">
             Failed to load database settings
           </Alert>
         ) : settings ? (
@@ -208,7 +234,7 @@ export function GeneralSettings() {
         </Text>
 
         {settingsError ? (
-          <Alert icon={<AlertCircle size={16} />} color="red" title="Error">
+          <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error">
             Failed to load settings
           </Alert>
         ) : settings ? (
@@ -286,7 +312,7 @@ export function GeneralSettings() {
             <Badge color="green">.env</Badge>
           </Group>
           <Button
-            leftSection={<Edit size={16} />}
+            leftSection={<IconEdit size={16} />}
             variant="light"
             size="xs"
             onClick={() => setEditEnvModalOpen(true)}
@@ -299,7 +325,7 @@ export function GeneralSettings() {
         </Text>
 
         {envError ? (
-          <Alert icon={<AlertCircle size={16} />} color="red" title="Error">
+          <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error">
             Failed to load environment variables
           </Alert>
         ) : envVars && Object.keys(envVars).length > 0 ? (
@@ -332,7 +358,7 @@ export function GeneralSettings() {
           </Table>
         ) : (
           <Alert
-            icon={<AlertCircle size={16} />}
+            icon={<IconAlertCircle size={16} />}
             color="blue"
             title="No .env file found"
           >
@@ -346,7 +372,7 @@ export function GeneralSettings() {
         opened={editEnvModalOpen}
         onClose={() => {
           setEditEnvModalOpen(false);
-          queryClient.invalidateQueries({ queryKey: ["envVars"] });
+          loadEnvVars();
         }}
         mode="edit"
         initialKey={

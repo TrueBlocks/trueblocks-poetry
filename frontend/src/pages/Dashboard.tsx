@@ -1,6 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { useRef } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useHotkeys } from "@mantine/hooks";
 import {
   Container,
@@ -20,61 +19,66 @@ import {
   GetNavigationHistory,
   GetMarkedEntities,
   GetTopHubs,
-} from "@wailsjs/go/main/App.js";
+} from "@wailsjs/go/app/App";
 import { GetAllEntities } from "@wailsjs/go/services/EntityService";
-import { Sparkles, Plus } from "lucide-react";
+import { IconSparkles, IconPlus } from "@tabler/icons-react";
 import { StatsCards, DashboardStats } from "@components/Dashboard/StatsCards";
 import { NavigationHistory } from "@components/Dashboard/NavigationHistory";
 import { Workbench } from "@components/Dashboard/Workbench";
 import { HubsList } from "@components/Dashboard/HubsList";
 import { DefinitionRenderer } from "@components/ItemDetail/DefinitionRenderer";
-import { useUIStore } from "@stores/useUIStore";
+import { useUI } from "@/contexts/UIContext";
 import { appConfig } from "@/config";
-
-// interface DashboardProps {
-//   // stats: Record<string, number> | null // Deprecated, we fetch extended stats now
-// }
+import { db } from "@models";
 
 export default function Dashboard() {
-  useQueryClient();
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const { showMarked, setShowMarked } = useUIStore();
+  const { showMarked, setShowMarked } = useUI();
 
-  const { data: allItems } = useQuery({
-    queryKey: ["allItems"],
-    queryFn: GetAllEntities,
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-  });
+  const [allItems, setAllItems] = useState<db.Entity[] | null>(null);
+  const [randomItem, setRandomItem] = useState<db.Entity | null>(null);
+  const [isLoadingRandom, setIsLoadingRandom] = useState(true);
+  const [extendedStats, setExtendedStats] = useState<unknown>(null);
+  const [navigationHistory, setNavigationHistory] = useState<db.Entity[]>([]);
+  const [markedItems, setMarkedItems] = useState<db.Entity[]>([]);
+  const [topHubs, setTopHubs] = useState<db.Entity[]>([]);
 
-  const {
-    data: randomItem,
-    refetch: refetchRandomItem,
-    isLoading: isLoadingRandom,
-  } = useQuery({
-    queryKey: ["randomItem"],
-    queryFn: GetRandomEntity,
-    refetchOnWindowFocus: false,
-  });
+  useEffect(() => {
+    GetAllEntities()
+      .then(setAllItems)
+      .catch(() => {});
+    GetExtendedStats()
+      .then(setExtendedStats)
+      .catch(() => {});
+    GetNavigationHistory()
+      .then((h) => setNavigationHistory(h || []))
+      .catch(() => {});
+  }, []);
 
-  const { data: extendedStats } = useQuery({
-    queryKey: ["extendedStats"],
-    queryFn: GetExtendedStats,
-  });
+  const loadDashboardData = useCallback(() => {
+    GetMarkedEntities()
+      .then((m) => setMarkedItems(m || []))
+      .catch(() => {});
+    GetTopHubs(20)
+      .then((h) => setTopHubs(h || []))
+      .catch(() => {});
+  }, []);
 
-  const { data: navigationHistory } = useQuery({
-    queryKey: ["navigationHistory"],
-    queryFn: GetNavigationHistory,
-  });
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
-  const { data: markedItems } = useQuery({
-    queryKey: ["markedItems"],
-    queryFn: GetMarkedEntities,
-  });
+  const refetchRandomItem = useCallback(() => {
+    setIsLoadingRandom(true);
+    GetRandomEntity()
+      .then(setRandomItem)
+      .catch(() => {})
+      .finally(() => setIsLoadingRandom(false));
+  }, []);
 
-  const { data: topHubs } = useQuery({
-    queryKey: ["topHubs"],
-    queryFn: () => GetTopHubs(20),
-  });
+  useEffect(() => {
+    refetchRandomItem();
+  }, [refetchRandomItem]);
 
   useHotkeys([
     [
@@ -100,18 +104,16 @@ export default function Dashboard() {
         <Button
           component={Link}
           to="/item/new?tab=detail"
-          leftSection={<Plus size={20} />}
+          leftSection={<IconPlus size={20} />}
         >
           New Item
         </Button>
       </Group>
 
-      {/* Navigation History */}
       <div style={{ marginBottom: "var(--mantine-spacing-xl)" }}>
         <NavigationHistory history={navigationHistory || []} />
       </div>
 
-      {/* Extended Stats */}
       <div style={{ marginBottom: "var(--mantine-spacing-xl)" }}>
         <StatsCards
           stats={(extendedStats as unknown as DashboardStats) || null}
@@ -119,28 +121,28 @@ export default function Dashboard() {
       </div>
 
       <Grid gutter="md">
-        {/* Left Column: Workbench & Hubs */}
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Stack gap="md">
             {showMarked ? (
               <Workbench
                 items={markedItems || []}
                 onToggle={handleToggleShowMarked}
+                onRefresh={loadDashboardData}
               />
             ) : (
               <HubsList
                 hubs={topHubs || []}
                 onToggle={handleToggleShowMarked}
+                onRefresh={loadDashboardData}
               />
             )}
           </Stack>
         </Grid.Col>
-        {/* Right Column: Random Discovery */}
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Paper radius="md" withBorder p="md" h="100%">
             <Group mb="md" justify="space-between">
               <Group>
-                <Sparkles size={20} />
+                <IconSparkles size={20} />
                 <Text fw={500}>Random Discovery</Text>
               </Group>
               <Button
