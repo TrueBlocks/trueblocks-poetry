@@ -1,3 +1,10 @@
 export { DefinitionRenderer } from "./DefinitionRenderer";
 export { ReferenceAnalysis } from "./ReferenceAnalysis";
 export { ItemHeader } from "./ItemHeader";
+export { HeaderToolbar } from "./HeaderToolbar";
+export { EntityContent } from "./EntityContent";
+export { DataQualityAlert } from "./DataQualityAlert";
+export { OutgoingConnections } from "./OutgoingConnections";
+export { IncomingConnections } from "./IncomingConnections";
+export { ImageModal } from "./ImageModal";
+export { MissingDefinitionModal } from "./MissingDefinitionModal";
