@@ -32,8 +32,8 @@ export function useWindowPersistence() {
       }
     };
 
-    // Save immediately on mount
-    savePosition();
+    // Delay first save to let Go-side WindowSetPosition restore position
+    const startupDelay = setTimeout(savePosition, 1000);
 
     // Save on resize
     window.addEventListener("resize", savePosition);
@@ -45,6 +45,7 @@ export function useWindowPersistence() {
     document.addEventListener("visibilitychange", savePosition);
 
     return () => {
+      clearTimeout(startupDelay);
       window.removeEventListener("resize", savePosition);
       clearInterval(positionInterval);
       document.removeEventListener("visibilitychange", savePosition);
