@@ -1,15 +1,14 @@
 package settings
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	appkit "github.com/TrueBlocks/trueblocks-art/packages/appkit/v2"
 	"github.com/TrueBlocks/trueblocks-poetry/v2/pkg/constants"
 )
 
-// SavedSearch represents a named search query
 type SavedSearch struct {
 	Name   string   `json:"name"`
 	Query  string   `json:"query"`
@@ -17,13 +16,11 @@ type SavedSearch struct {
 	Source string   `json:"source,omitempty"`
 }
 
-// Search stores search-related data
 type Search struct {
-	RecentSearches []string      `json:"recentSearches"` // most recent first, max 50
-	SavedSearches  []SavedSearch `json:"savedSearches"`  // user-named search bookmarks
+	RecentSearches []string      `json:"recentSearches"`
+	SavedSearches  []SavedSearch `json:"savedSearches"`
 }
 
-// Window stores window position and size
 type Window struct {
 	X            int `json:"x"`
 	Y            int `json:"y"`
@@ -32,17 +29,14 @@ type Window struct {
 	LeftbarWidth int `json:"leftbarWidth"`
 }
 
-// CollapsedState stores UI collapse states
 type CollapsedState struct {
-	Outgoing      bool `json:"outgoing"`      // default true (collapsed)
-	Incoming      bool `json:"incoming"`      // default false (expanded)
-	LinkIntegrity bool `json:"linkIntegrity"` // default false
-	ItemHealth    bool `json:"itemHealth"`    // default false
-	RecentPath    bool `json:"recentPath"`    // default true (collapsed)
+	Outgoing      bool `json:"outgoing"`
+	Incoming      bool `json:"incoming"`
+	LinkIntegrity bool `json:"linkIntegrity"`
+	ItemHealth    bool `json:"itemHealth"`
+	RecentPath    bool `json:"recentPath"`
 }
 
-// TableSort stores sorting state for a table (field1: primary sort, field2: secondary sort)
-// direction: "asc", "desc", or "" (unsorted)
 type TableSort struct {
 	Field1 string `json:"field1,omitempty"`
 	Dir1   string `json:"dir1,omitempty"`
@@ -50,39 +44,32 @@ type TableSort struct {
 	Dir2   string `json:"dir2,omitempty"`
 }
 
-// History stores navigation history
 type History struct {
-	NavigationHistory []int `json:"navigationHistory"` // list of recently visited item IDs
+	NavigationHistory []int `json:"navigationHistory"`
 }
 
-// Settings stores user preferences
 type Settings struct {
 	Window         Window               `json:"window"`
 	ExportFolder   string               `json:"exportFolder"`
 	LastWordID     int                  `json:"lastWordId"`
-	LastView       string               `json:"lastView"`      // dashboard, graph, search, item, export
-	LastTable      string               `json:"lastTable"`     // last viewed table in Tables view
-	TabSelections  map[string]string    `json:"tabSelections"` // view/component ID -> selected tab ID
+	LastView       string               `json:"lastView"`
+	LastTable      string               `json:"lastTable"`
+	TabSelections  map[string]string    `json:"tabSelections"`
 	RevealMarkdown bool                 `json:"revealMarkdown"`
-	ShowMarked     bool                 `json:"showMarked"`           // toggle between Workbench and Top Hubs
-	Collapsed      CollapsedState       `json:"collapsed"`            // UI collapse states
-	TableSorts     map[string]TableSort `json:"tableSorts,omitempty"` // sorting state per table
-	CurrentSearch  string               `json:"currentSearch"`        // current table search query
-	ManagerOldType string               `json:"managerOldType"`       // Item Manager: last selected old type
-	ManagerNewType string               `json:"managerNewType"`       // Item Manager: last selected new type
+	ShowMarked     bool                 `json:"showMarked"`
+	Collapsed      CollapsedState       `json:"collapsed"`
+	TableSorts     map[string]TableSort `json:"tableSorts,omitempty"`
+	CurrentSearch  string               `json:"currentSearch"`
+	ManagerOldType string               `json:"managerOldType"`
+	ManagerNewType string               `json:"managerNewType"`
 }
 
-// Manager handles settings persistence
 type Manager struct {
-	settingsPath string
-	searchPath   string
-	historyPath  string
-	settings     *Settings
-	search       *Search
-	history      *History
+	settings *appkit.Store[Settings]
+	search   *appkit.Store[Search]
+	history  *appkit.Store[History]
 }
 
-// NewManager creates a new settings manager
 func NewManager() (*Manager, error) {
 	configDir, err := constants.GetConfigDir()
 	if err != nil {
@@ -93,392 +80,269 @@ func NewManager() (*Manager, error) {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	settingsPath := filepath.Join(configDir, "settings.json")
-	searchPath := filepath.Join(configDir, "search.json")
-	historyPath := filepath.Join(configDir, "history.json")
-
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user home directory: %w", err)
 	}
 	defaultExportFolder := filepath.Join(homeDir, "Documents", "Poetry", "exports")
 
-	m := &Manager{
-		settingsPath: settingsPath,
-		searchPath:   searchPath,
-		historyPath:  historyPath,
-		settings: &Settings{
-			Window: Window{
-				X:            100,
-				Y:            100,
-				Width:        1024,
-				Height:       768,
-				LeftbarWidth: 260,
-			},
-			ExportFolder: defaultExportFolder,
-			TableSorts:   make(map[string]TableSort),
-			Collapsed: CollapsedState{
-				Outgoing: true,  // default collapsed
-				Incoming: false, // default expanded
-			},
+	settingsStore := appkit.NewStore(filepath.Join(configDir, "settings.json"), Settings{
+		Window: Window{
+			X:            100,
+			Y:            100,
+			Width:        1024,
+			Height:       768,
+			LeftbarWidth: 260,
 		},
-		search: &Search{
-			RecentSearches: []string{},
-			SavedSearches:  []SavedSearch{},
+		ExportFolder: defaultExportFolder,
+		TableSorts:   make(map[string]TableSort),
+		Collapsed: CollapsedState{
+			Outgoing: true,
+			Incoming: false,
 		},
-		history: &History{
-			NavigationHistory: []int{},
-		},
-	}
+	})
+	_ = settingsStore.Load()
 
-	// Load existing settings if available
-	_ = m.Load()
-	_ = m.LoadSearch()
-	_ = m.LoadHistory()
+	searchStore := appkit.NewStore(filepath.Join(configDir, "search.json"), Search{
+		RecentSearches: []string{},
+		SavedSearches:  []SavedSearch{},
+	})
+	_ = searchStore.Load()
 
-	return m, nil
+	historyStore := appkit.NewStore(filepath.Join(configDir, "history.json"), History{
+		NavigationHistory: []int{},
+	})
+	_ = historyStore.Load()
+
+	return &Manager{
+		settings: settingsStore,
+		search:   searchStore,
+		history:  historyStore,
+	}, nil
 }
 
-// Load reads settings from disk
-func (m *Manager) Load() error {
-	data, err := os.ReadFile(m.settingsPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// File doesn't exist yet, use defaults
-			return nil
-		}
-		return fmt.Errorf("failed to read settings: %w", err)
-	}
-
-	if err := json.Unmarshal(data, m.settings); err != nil {
-		return fmt.Errorf("failed to parse settings: %w", err)
-	}
-
-	return nil
-}
-
-// Save writes settings to disk
-func (m *Manager) Save() error {
-	data, err := json.MarshalIndent(m.settings, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal settings: %w", err)
-	}
-
-	if err := os.WriteFile(m.settingsPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write settings: %w", err)
-	}
-
-	return nil
-}
-
-// Get returns current settings
 func (m *Manager) Get() *Settings {
-	return m.settings
+	s := m.settings.Get()
+	return &s
 }
 
-// Update updates all settings and saves
 func (m *Manager) Update(s Settings) error {
-	*m.settings = s
-	return m.Save()
+	return m.settings.Set(s)
 }
 
-// UpdateWindowPosition updates and saves window position
 func (m *Manager) UpdateWindowPosition(x, y, width, height int) error {
-	m.settings.Window.X = x
-	m.settings.Window.Y = y
-	m.settings.Window.Width = width
-	m.settings.Window.Height = height
-	return m.Save()
+	return m.settings.Update(func(s *Settings) {
+		s.Window.X = x
+		s.Window.Y = y
+		s.Window.Width = width
+		s.Window.Height = height
+	})
 }
 
-// UpdateLeftbarWidth updates and saves leftbar width
 func (m *Manager) UpdateLeftbarWidth(width int) error {
-	m.settings.Window.LeftbarWidth = width
-	return m.Save()
+	return m.settings.Update(func(s *Settings) {
+		s.Window.LeftbarWidth = width
+	})
 }
 
-// UpdateTabSelection updates and saves a tab selection for a specific view
 func (m *Manager) UpdateTabSelection(viewID, tabID string) error {
-	if m.settings.TabSelections == nil {
-		m.settings.TabSelections = make(map[string]string)
-	}
-	m.settings.TabSelections[viewID] = tabID
-	return m.Save()
+	return m.settings.Update(func(s *Settings) {
+		if s.TabSelections == nil {
+			s.TabSelections = make(map[string]string)
+		}
+		s.TabSelections[viewID] = tabID
+	})
 }
 
-// UpdateLastWord updates and saves last viewed word
-func (m *Manager) UpdateLastWord(wordID int) error {
-	m.settings.LastWordID = wordID
+func (m *Manager) UpdateTableSort(tableName, field1, dir1, field2, dir2 string) error {
+	return m.settings.Update(func(s *Settings) {
+		if s.TableSorts == nil {
+			s.TableSorts = make(map[string]TableSort)
+		}
+		s.TableSorts[tableName] = TableSort{
+			Field1: field1,
+			Dir1:   dir1,
+			Field2: field2,
+			Dir2:   dir2,
+		}
+	})
+}
 
-	// Update history
+func (m *Manager) UpdateCurrentSearch(query string) error {
+	return m.settings.Update(func(s *Settings) {
+		s.CurrentSearch = query
+	})
+}
+
+func (m *Manager) UpdateLastWord(wordID int) error {
+	if err := m.settings.Update(func(s *Settings) {
+		s.LastWordID = wordID
+	}); err != nil {
+		return err
+	}
+
 	if wordID > 0 {
-		// Remove if already exists (to move to front)
-		filtered := make([]int, 0, len(m.history.NavigationHistory))
-		for _, id := range m.history.NavigationHistory {
-			if id != wordID {
+		return m.history.Update(func(h *History) {
+			filtered := make([]int, 0, len(h.NavigationHistory))
+			for _, id := range h.NavigationHistory {
+				if id != wordID {
+					filtered = append(filtered, id)
+				}
+			}
+			h.NavigationHistory = append([]int{wordID}, filtered...)
+			if len(h.NavigationHistory) > 50 {
+				h.NavigationHistory = h.NavigationHistory[:50]
+			}
+		})
+	}
+	return nil
+}
+
+func (m *Manager) UpdateLastView(view string) error {
+	return m.settings.Update(func(s *Settings) {
+		s.LastView = view
+	})
+}
+
+func (m *Manager) UpdateRevealMarkdown(reveal bool) error {
+	return m.settings.Update(func(s *Settings) {
+		s.RevealMarkdown = reveal
+	})
+}
+
+func (m *Manager) UpdateOutgoingCollapsed(collapsed bool) error {
+	return m.settings.Update(func(s *Settings) {
+		s.Collapsed.Outgoing = collapsed
+	})
+}
+
+func (m *Manager) UpdateIncomingCollapsed(collapsed bool) error {
+	return m.settings.Update(func(s *Settings) {
+		s.Collapsed.Incoming = collapsed
+	})
+}
+
+func (m *Manager) UpdateReportLinkIntegrityCollapsed(collapsed bool) error {
+	return m.settings.Update(func(s *Settings) {
+		s.Collapsed.LinkIntegrity = collapsed
+	})
+}
+
+func (m *Manager) UpdateReportItemHealthCollapsed(collapsed bool) error {
+	return m.settings.Update(func(s *Settings) {
+		s.Collapsed.ItemHealth = collapsed
+	})
+}
+
+func (m *Manager) UpdateExportFolder(folder string) error {
+	return m.settings.Update(func(s *Settings) {
+		s.ExportFolder = folder
+	})
+}
+
+func (m *Manager) GetNavigationHistory() []int {
+	h := m.history.Get()
+	if len(h.NavigationHistory) > 50 {
+		return h.NavigationHistory[:50]
+	}
+	return h.NavigationHistory
+}
+
+func (m *Manager) RemoveFromHistory(itemID int) error {
+	return m.history.Update(func(h *History) {
+		filtered := make([]int, 0, len(h.NavigationHistory))
+		for _, id := range h.NavigationHistory {
+			if id != itemID {
 				filtered = append(filtered, id)
 			}
 		}
-
-		// Add to front
-		m.history.NavigationHistory = append([]int{wordID}, filtered...)
-
-		// Limit to 50
-		if len(m.history.NavigationHistory) > 50 {
-			m.history.NavigationHistory = m.history.NavigationHistory[:50]
-		}
-		if err := m.SaveHistory(); err != nil {
-			return err
-		}
-	}
-
-	return m.Save()
+		h.NavigationHistory = filtered
+	})
 }
 
-// GetNavigationHistory returns the navigation history
-func (m *Manager) GetNavigationHistory() []int {
-	// Return up to 50 items (frontend handles display limit)
-	if len(m.history.NavigationHistory) > 50 {
-		return m.history.NavigationHistory[:50]
-	}
-	return m.history.NavigationHistory
-}
-
-// LoadHistory reads history from disk
-func (m *Manager) LoadHistory() error {
-	data, err := os.ReadFile(m.historyPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// File doesn't exist yet, check if we have history in settings to migrate
-			// Note: We are not doing a migration as requested by the user
-			return nil
-		}
-		return fmt.Errorf("failed to read history: %w", err)
-	}
-
-	if err := json.Unmarshal(data, m.history); err != nil {
-		return fmt.Errorf("failed to parse history: %w", err)
-	}
-
-	return nil
-}
-
-// SaveHistory writes history to disk
-func (m *Manager) SaveHistory() error {
-	data, err := json.MarshalIndent(m.history, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal history: %w", err)
-	}
-
-	if err := os.WriteFile(m.historyPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write history: %w", err)
-	}
-
-	return nil
-}
-
-// RemoveFromHistory removes an item ID from the navigation history
-func (m *Manager) RemoveFromHistory(itemID int) error {
-	filtered := make([]int, 0, len(m.history.NavigationHistory))
-	for _, id := range m.history.NavigationHistory {
-		if id != itemID {
-			filtered = append(filtered, id)
-		}
-	}
-	m.history.NavigationHistory = filtered
-	return m.SaveHistory()
-}
-
-// GetHistoryItem returns the item at the specified index, or 0 if out of bounds
 func (m *Manager) GetHistoryItem(index int) int {
-	if index >= 0 && index < len(m.history.NavigationHistory) {
-		return m.history.NavigationHistory[index]
+	h := m.history.Get()
+	if index >= 0 && index < len(h.NavigationHistory) {
+		return h.NavigationHistory[index]
 	}
 	return 0
 }
 
-// GetHistoryLength returns the number of items in history
 func (m *Manager) GetHistoryLength() int {
-	return len(m.history.NavigationHistory)
-}
-func (m *Manager) UpdateLastView(view string) error {
-	m.settings.LastView = view
-	return m.Save()
+	return len(m.history.Get().NavigationHistory)
 }
 
-// UpdateRevealMarkdown updates the reveal markdown setting
-func (m *Manager) UpdateRevealMarkdown(reveal bool) error {
-	m.settings.RevealMarkdown = reveal
-	return m.Save()
-}
-
-// UpdateOutgoingCollapsed updates the outgoing collapsed setting
-func (m *Manager) UpdateOutgoingCollapsed(collapsed bool) error {
-	m.settings.Collapsed.Outgoing = collapsed
-	return m.Save()
-}
-
-// UpdateIncomingCollapsed updates the incoming collapsed setting
-func (m *Manager) UpdateIncomingCollapsed(collapsed bool) error {
-	m.settings.Collapsed.Incoming = collapsed
-	return m.Save()
-}
-
-// LoadSearch reads search data from disk
-func (m *Manager) LoadSearch() error {
-	data, err := os.ReadFile(m.searchPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// File doesn't exist yet, use defaults
-			return nil
-		}
-		return fmt.Errorf("failed to read search data: %w", err)
-	}
-
-	if err := json.Unmarshal(data, m.search); err != nil {
-		return fmt.Errorf("failed to parse search data: %w", err)
-	}
-
-	return nil
-}
-
-// SaveSearch writes search data to disk
-func (m *Manager) SaveSearch() error {
-	data, err := json.MarshalIndent(m.search, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal search data: %w", err)
-	}
-
-	if err := os.WriteFile(m.searchPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write search data: %w", err)
-	}
-
-	return nil
-}
-
-// GetRecentSearches returns the recent searches list
 func (m *Manager) GetRecentSearches() []string {
-	return m.search.RecentSearches
+	return m.search.Get().RecentSearches
 }
 
-// GetSavedSearches returns the saved searches list
 func (m *Manager) GetSavedSearches() []SavedSearch {
-	return m.search.SavedSearches
+	return m.search.Get().SavedSearches
 }
 
-// AddRecentSearch adds a search term to recent searches (most recent first, max 50)
 func (m *Manager) AddRecentSearch(term string) error {
 	if term == "" {
 		return nil
 	}
-
-	// Remove if already exists (to move to front)
-	filtered := make([]string, 0, len(m.search.RecentSearches))
-	for _, s := range m.search.RecentSearches {
-		if s != term {
-			filtered = append(filtered, s)
+	return m.search.Update(func(s *Search) {
+		filtered := make([]string, 0, len(s.RecentSearches))
+		for _, t := range s.RecentSearches {
+			if t != term {
+				filtered = append(filtered, t)
+			}
 		}
-	}
-
-	// Add to front
-	m.search.RecentSearches = append([]string{term}, filtered...)
-
-	// Limit to 50
-	if len(m.search.RecentSearches) > 50 {
-		m.search.RecentSearches = m.search.RecentSearches[:50]
-	}
-
-	return m.SaveSearch()
+		s.RecentSearches = append([]string{term}, filtered...)
+		if len(s.RecentSearches) > 50 {
+			s.RecentSearches = s.RecentSearches[:50]
+		}
+	})
 }
 
-// RemoveRecentSearch removes a search term from recent searches
 func (m *Manager) RemoveRecentSearch(term string) error {
-	filtered := make([]string, 0, len(m.search.RecentSearches))
-	for _, s := range m.search.RecentSearches {
-		if s != term {
-			filtered = append(filtered, s)
+	return m.search.Update(func(s *Search) {
+		filtered := make([]string, 0, len(s.RecentSearches))
+		for _, t := range s.RecentSearches {
+			if t != term {
+				filtered = append(filtered, t)
+			}
 		}
-	}
-	m.search.RecentSearches = filtered
-	return m.SaveSearch()
+		s.RecentSearches = filtered
+	})
 }
 
-// AddSavedSearch saves a named search for later recall
 func (m *Manager) AddSavedSearch(name, query string, types []string, source string) error {
 	if name == "" || query == "" {
 		return fmt.Errorf("name and query are required")
 	}
-
-	// Check if already exists and update
-	for i, saved := range m.search.SavedSearches {
-		if saved.Name == name {
-			m.search.SavedSearches[i] = SavedSearch{
-				Name:   name,
-				Query:  query,
-				Types:  types,
-				Source: source,
+	return m.search.Update(func(s *Search) {
+		for i, saved := range s.SavedSearches {
+			if saved.Name == name {
+				s.SavedSearches[i] = SavedSearch{
+					Name:   name,
+					Query:  query,
+					Types:  types,
+					Source: source,
+				}
+				return
 			}
-			return m.SaveSearch()
 		}
-	}
-
-	// Add new saved search
-	m.search.SavedSearches = append(m.search.SavedSearches, SavedSearch{
-		Name:   name,
-		Query:  query,
-		Types:  types,
-		Source: source,
+		s.SavedSearches = append(s.SavedSearches, SavedSearch{
+			Name:   name,
+			Query:  query,
+			Types:  types,
+			Source: source,
+		})
 	})
-
-	return m.SaveSearch()
 }
 
-// DeleteSavedSearch removes a saved search by name
 func (m *Manager) DeleteSavedSearch(name string) error {
-	filtered := make([]SavedSearch, 0, len(m.search.SavedSearches))
-	for _, saved := range m.search.SavedSearches {
-		if saved.Name != name {
-			filtered = append(filtered, saved)
+	return m.search.Update(func(s *Search) {
+		filtered := make([]SavedSearch, 0, len(s.SavedSearches))
+		for _, saved := range s.SavedSearches {
+			if saved.Name != name {
+				filtered = append(filtered, saved)
+			}
 		}
-	}
-	m.search.SavedSearches = filtered
-	return m.SaveSearch()
-}
-
-// UpdateReportLinkIntegrityCollapsed updates the link integrity report collapsed state
-func (m *Manager) UpdateReportLinkIntegrityCollapsed(collapsed bool) error {
-	m.settings.Collapsed.LinkIntegrity = collapsed
-	return m.Save()
-}
-
-// UpdateReportItemHealthCollapsed updates the item health report collapsed state
-func (m *Manager) UpdateReportItemHealthCollapsed(collapsed bool) error {
-	m.settings.Collapsed.ItemHealth = collapsed
-	return m.Save()
-}
-
-// UpdateTableSort updates the sorting state for a table
-func (m *Manager) UpdateTableSort(tableName, field1, dir1, field2, dir2 string) error {
-	if m.settings.TableSorts == nil {
-		m.settings.TableSorts = make(map[string]TableSort)
-	}
-	m.settings.TableSorts[tableName] = TableSort{
-		Field1: field1,
-		Dir1:   dir1,
-		Field2: field2,
-		Dir2:   dir2,
-	}
-	return m.Save()
-}
-
-// UpdateCurrentSearch updates the current table search query
-func (m *Manager) UpdateCurrentSearch(query string) error {
-	m.settings.CurrentSearch = query
-	return m.Save()
-}
-
-// UpdateExportFolder updates the export folder path
-func (m *Manager) UpdateExportFolder(folder string) error {
-	m.settings.ExportFolder = folder
-	return m.Save()
+		s.SavedSearches = filtered
+	})
 }
