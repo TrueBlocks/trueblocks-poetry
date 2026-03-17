@@ -2,10 +2,10 @@ package config
 
 import (
 	_ "embed"
-	"encoding/json"
 	"os"
 	"path/filepath"
 
+	appkit "github.com/TrueBlocks/trueblocks-art/packages/appkit/v2"
 	"github.com/TrueBlocks/trueblocks-poetry/v2/pkg/constants"
 )
 
@@ -67,17 +67,12 @@ func LoadConfig() (*AppConfig, error) {
 		return nil, err
 	}
 
-	data, err := os.ReadFile(path)
+	cfg, err := appkit.LoadJSON[AppConfig](path, AppConfig{})
 	if err != nil {
 		return nil, err
 	}
 
-	var config AppConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, err
-	}
-
-	return &config, nil
+	return &cfg, nil
 }
 
 func GetConfigContent() (string, error) {
