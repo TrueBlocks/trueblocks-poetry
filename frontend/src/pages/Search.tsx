@@ -44,13 +44,7 @@ import { notifications } from "@mantine/notifications";
 import { DefinitionRenderer } from "@components/ItemDetail/DefinitionRenderer";
 import { useUI } from "@/contexts/UIContext";
 import { db } from "@models";
-
-interface SavedSearch {
-  name: string;
-  query: string;
-  types?: string[];
-  source?: string;
-}
+import { settings } from "@models";
 
 // Helper to get first sentence from description
 const getFirstSentence = (text: string | null | undefined): string => {
@@ -95,7 +89,7 @@ export default function Search() {
   const [query, setQuery] = useState(currentSearch || "");
   const [debouncedQuery, setDebouncedQuery] = useState(currentSearch || "");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [savedSearches, setSavedSearches] = useState<settings.SavedSearch[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedSource, setSelectedSource] = useState<string>("");
@@ -370,7 +364,7 @@ export default function Search() {
     }
   };
 
-  const handleLoadSavedSearch = async (saved: SavedSearch) => {
+  const handleLoadSavedSearch = async (saved: settings.SavedSearch) => {
     setQuery(saved.query);
     setDebouncedQuery(saved.query);
     setSelectedTypes(saved.types || []);

@@ -22,7 +22,7 @@ import {
 } from "@wailsjs/go/app/App";
 import { GetAllEntities } from "@wailsjs/go/services/EntityService";
 import { IconSparkles, IconPlus } from "@tabler/icons-react";
-import { StatsCards, DashboardStats } from "@components/Dashboard/StatsCards";
+import { StatsCards } from "@components/Dashboard/StatsCards";
 import { NavigationHistory } from "@components/Dashboard/NavigationHistory";
 import { Workbench } from "@components/Dashboard/Workbench";
 import { HubsList } from "@components/Dashboard/HubsList";
@@ -116,7 +116,7 @@ export default function Dashboard() {
 
       <div style={{ marginBottom: "var(--mantine-spacing-xl)" }}>
         <StatsCards
-          stats={(extendedStats as unknown as DashboardStats) || null}
+          stats={(extendedStats as unknown as db.DashboardStats) || null}
         />
       </div>
 

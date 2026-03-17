@@ -11,21 +11,10 @@ import {
   IconPencil,
 } from "@tabler/icons-react";
 import { Link } from "react-router-dom";
-
-export interface DashboardStats {
-  totalEntities: number;
-  totalLinks: number;
-  quoteCount: number;
-  citedCount: number;
-  writerCount: number;
-  poetCount: number;
-  titleCount: number;
-  wordCount: number;
-  errorCount: number;
-}
+import { db } from "@models";
 
 interface StatsCardsProps {
-  stats: DashboardStats | null;
+  stats: db.DashboardStats | null;
 }
 
 export function StatsCards({ stats }: StatsCardsProps) {
