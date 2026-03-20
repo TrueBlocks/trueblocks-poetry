@@ -4,6 +4,28 @@ A desktop application for managing literary references, definitions, and relatio
 
 ![Dashboard Screenshot](images/screenshot.png)
 
+## Architectural Status
+
+`poetry` is an active app and is expected to move toward the newer shared-app
+platform over time. It is not the default template for new desktop-app work
+today, but it is also not intended to remain a permanent architectural outlier.
+
+That means:
+
+- the app is still supported and worth maintaining
+- its current custom frontend shell and app-local `UIContext` pattern should be
+  treated as transitional rather than final
+- newer platform guidance for new apps should generally follow `works`,
+  `acrylic`, and `siteman` instead
+
+Current modernization direction:
+
+- align docs and platform guidance with the actual app code
+- move the frontend shell toward shared platform primitives where they fit
+- reduce app-local patterns when the shared packages already provide a clearer
+  replacement
+- standardize repo-level build, lint, type-check, and test entry points
+
 ## Features
 
 ### Core Functionality
@@ -139,7 +161,7 @@ The built application will be in `build/bin/`.
 - **Frontend**: React with TypeScript, Mantine UI components
 - **Database**: SQLite with FTS5 full-text search
 - **Graph**: D3.js force simulation with React Flow
-- **State Management**: TanStack Query (React Query)
+- **State Management**: App-local React Context via `UIContext`
 - **API**: Direct CGO bridge (no HTTP/REST overhead)
 
 ### Project Structure

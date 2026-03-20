@@ -2,6 +2,10 @@
 
 This document describes the technical architecture and design decisions of the dbPoetry application.
 
+> Repo status note: `poetry` is expected to move toward the newer shared-app
+> platform over time. It is not the default reference model for new desktop-app
+> work today, but it is also not intended to remain a permanent outlier.
+
 ## Technology Stack
 
 ### Core Framework
