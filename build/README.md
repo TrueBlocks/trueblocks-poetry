@@ -33,3 +33,5 @@ build with `wails build`.
 - `info.json` - Application details used for Windows builds. The data here will be used by the Windows installer,
   as well as the application itself (right click the exe -> properties -> details)
 - `wails.exe.manifest` - The main application manifest file.
+
+![README infographic](README-infographic.png)
