@@ -140,7 +140,7 @@ func (a *App) GetTTSCacheInfo() (*TTSCacheInfo, error) {
 	var fileCount int
 	var totalSize int64
 
-	err = filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(cacheDir, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -174,7 +174,7 @@ func (a *App) GetImageCacheInfo() (*ImageCacheInfo, error) {
 	var fileCount int
 	var totalSize int64
 
-	err = filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(cacheDir, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

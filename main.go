@@ -16,11 +16,11 @@ func main() {
 	application := app.NewApp()
 
 	err := appkit.Run(appkit.AppConfig{
-		Title:            "Poetry",
-		Assets:           assets,
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        application.Startup,
-		OnShutdown:       application.Shutdown,
+		Title:             "Poetry",
+		Assets:            assets,
+		BackgroundColour:  &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		OnStartup:         application.Startup,
+		OnShutdown:        application.Shutdown,
 		GetWindowGeometry: application.GetWindowGeometry,
 		Bind: []interface{}{
 			application,

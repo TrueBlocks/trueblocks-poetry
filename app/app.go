@@ -41,8 +41,8 @@ func NewApp() *App {
 }
 
 func (a *App) TTSService() *services.TTSService       { return a.ttsService }
-func (a *App) ImageService() *services.ImageService    { return a.imageService }
-func (a *App) EntityService() *services.EntityService  { return a.entityService }
+func (a *App) ImageService() *services.ImageService   { return a.imageService }
+func (a *App) EntityService() *services.EntityService { return a.entityService }
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
@@ -50,7 +50,6 @@ func (a *App) Startup(ctx context.Context) {
 	if err := applogger.InitLogger(); err != nil {
 		println("Failed to initialize logger:", err.Error())
 	}
-
 
 	settingsMgr, err := settings.NewManager()
 	if err != nil {
@@ -144,7 +143,7 @@ func (a *App) GetReferencePattern() string {
 	return parser.GetReferencePattern()
 }
 
-func (a *App) Shutdown(ctx context.Context) {
+func (a *App) Shutdown(_ context.Context) {
 	if a.db != nil {
 		if err := a.db.Close(); err != nil {
 			slog.Error("Failed to close database during shutdown", "error", err)

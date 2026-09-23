@@ -40,7 +40,7 @@ func (a *App) GetAllRelationships() ([]db.Relationship, error) {
 	return a.entityService.GetAllRelationships()
 }
 
-func (a *App) GetEgoGraph(centerNodeID int, depth int) (*services.GraphData, error) {
+func (a *App) GetEgoGraph(centerNodeID int, _ int) (*services.GraphData, error) {
 	return a.entityService.GetEgoGraph(centerNodeID)
 }
 
