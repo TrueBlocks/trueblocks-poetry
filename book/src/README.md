@@ -12,4 +12,4 @@ The Poetry Application is a literary reference system designed to manage and exp
 - **Technical Documentation**: Architecture, Backend Services, and Frontend Application.
 - **Data Modeling**: Detailed explanation of the database schema and data structures.
 
-![README infographic](README-infographic.png)
+![README infographic](README-infographic.jpg)

@@ -7,4 +7,4 @@ Welcome to the Poetry Application User Guide. This section will help you navigat
 - [Getting Started](getting_started.md)
 - [Features & Usage](features.md)
 
-![README infographic](README-infographic.png)
+![README infographic](README-infographic.jpg)

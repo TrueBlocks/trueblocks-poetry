@@ -34,4 +34,4 @@ build with `wails build`.
   as well as the application itself (right click the exe -> properties -> details)
 - `wails.exe.manifest` - The main application manifest file.
 
-![README infographic](README-infographic.png)
+![README infographic](README-infographic.jpg)

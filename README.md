@@ -210,4 +210,4 @@ poetry/
 
 See LICENSE file for details.
 
-![README infographic](README-infographic.png)
+![README infographic](README-infographic.jpg)

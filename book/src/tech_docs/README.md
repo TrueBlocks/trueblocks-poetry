@@ -9,4 +9,4 @@ This section is intended for developers contributing to the Poetry Application. 
 - [Backend Services](backend.md)
 - [Frontend Application](frontend.md)
 
-![README infographic](README-infographic.png)
+![README infographic](README-infographic.jpg)
